@@ -1,8 +1,8 @@
 <div dir="rtl">
 
-# برنامه مدیریت IKEv2 برای OpenWrt
+# IkevWrt — مدیریت IKEv2 برای OpenWrt
 
-[![CI](https://github.com/dreamboxone/ikev2-openwrt/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamboxone/ikev2-openwrt/actions/workflows/ci.yml)
+[![CI](https://github.com/saeedt20/ikevwrt/actions/workflows/ci.yml/badge.svg)](https://github.com/saeedt20/ikevwrt/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **[English documentation](README.en.md)**
@@ -57,7 +57,7 @@ apk --print-arch 2>/dev/null || opkg print-architecture
 ### گام ۲-الف: نصب روی OpenWrt 24.10 (فایل IPK)
 
 آخرین فایل `luci-app-ikev2-manager_*_all.ipk` را از
-[بخش Releases](https://github.com/dreamboxone/ikev2-openwrt/releases) دانلود کنید.
+[بخش Releases](https://github.com/saeedt20/ikevwrt/releases) دانلود کنید.
 
 **از طریق LuCI:**
 
@@ -308,6 +308,12 @@ opkg remove luci-app-ikev2-manager
 - [معماری](docs/ARCHITECTURE.md)
 - [NOTICE فهرست‌های خارجی](NOTICE)
 
+## آغاز IkevWrt
+
+IkevWrt ادامهٔ مستقلی از [dreamboxone/ikev2-openwrt](https://github.com/dreamboxone/ikev2-openwrt) با نگهداری [saeedt20](https://github.com/saeedt20) است. مبنای آغاز، کامیت `048eb13` از نسخهٔ `1.13.2` است. ترجمهٔ فارسی، چیدمان راست‌به‌چپ و مسیردهی مستقیم مقصدهای ایرانی از آن مخزن به ارث رسیده‌اند.
+
+بسته‌ها و مسیرهای داخلی فعلاً نام `luci-app-ikev2-manager` را حفظ می‌کنند. هنوز نسخه‌ای از IkevWrt منتشر نشده است؛ دستورهای دانلود پس از انتشار اولین نسخه قابل استفاده خواهند بود. تنظیمات feed و کلید عمومی APK همچنان متعلق به upstream هستند و انتشار مستقل امضاشده به تنظیم feed و کلید مخصوص این پروژه نیاز دارد.
+
 ## قدردانی
 
 این پروژه بر پایهٔ کار **[Nikitid](https://github.com/Nikitid)** و مخزن اصلی
@@ -316,34 +322,11 @@ opkg remove luci-app-ikev2-manager
 زحمت ایشان است. از نویسندهٔ روسی پروژه بابت این کار ارزشمند و انتشار آن به
 صورت متن‌باز صمیمانه سپاسگزاریم.
 
-این مخزن یک fork است که ترجمهٔ فارسی، چیدمان راست‌به‌چپ و مسیردهی مستقیم
-مقصدهای ایرانی را به آن افزوده است.
+از dreamboxone بابت تغییرات فارسی و قابلیت‌های افزوده‌شده نیز قدردانی می‌کنیم.
 
 ## مجوز
 
 این پروژه تحت [MIT License](LICENSE) منتشر شده است. شرایط فهرست‌های اختیاری که
 در زمان اجرا از بیرون دریافت می‌شوند در [NOTICE](NOTICE) توضیح داده شده است.
-
-</div>
-
----
-
-<div dir="rtl">
-
-## 💚 حمایت از این پروژه
-
-اگر این پروژه به کارتان آمده، می‌توانید با واریز تتر از آن حمایت کنید:
-
-**USDT (تتر) — فقط شبکه BEP20 (BSC)**
-
-</div>
-
-```
-0x56daaa6b76d88ee0c8dba8042121f4b77de0a813
-```
-
-<div dir="rtl">
-
-> ⚠️ این آدرس فقط برای واریز تتر در شبکه BEP20 (BSC) است. واریز ارز دیگر یا از شبکه دیگر به این آدرس از دست می‌رود.
 
 </div>

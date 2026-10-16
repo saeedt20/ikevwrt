@@ -1,6 +1,6 @@
-# IKEv2 Manager for OpenWrt
+# IkevWrt — IKEv2 for OpenWrt
 
-[![CI](https://github.com/dreamboxone/ikev2-openwrt/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamboxone/ikev2-openwrt/actions/workflows/ci.yml)
+[![CI](https://github.com/saeedt20/ikevwrt/actions/workflows/ci.yml/badge.svg)](https://github.com/saeedt20/ikevwrt/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **[مستندات فارسی](README.md)**
@@ -51,7 +51,7 @@ fields must match the file you download exactly.
 ### Step 2a: install on OpenWrt 24.10 (IPK)
 
 Download the latest `luci-app-ikev2-manager_*_all.ipk` from
-[Releases](https://github.com/dreamboxone/ikev2-openwrt/releases).
+[Releases](https://github.com/saeedt20/ikevwrt/releases).
 
 **From LuCI:**
 
@@ -289,6 +289,12 @@ exact target; see [OpenWrt 25.12 and APK](docs/OPENWRT25.md).
 - [Architecture](docs/ARCHITECTURE.md)
 - [NOTICE for external lists](NOTICE)
 
+## Starting IkevWrt
+
+IkevWrt is an independent continuation of [dreamboxone/ikev2-openwrt](https://github.com/dreamboxone/ikev2-openwrt), maintained by [saeedt20](https://github.com/saeedt20). The starting point is commit `048eb13`, version `1.13.2`. Persian translation, RTL layout and direct routing for Iranian destinations are inherited from that repository.
+
+Package names and internal paths retain `luci-app-ikev2-manager` for compatibility. No IkevWrt release has been published yet; download instructions become usable after the first release. APK feed settings and public keys still belong to upstream. Independent signed distribution requires a project-owned feed and signing key.
+
 ## Credits
 
 This project is built on the work of
@@ -298,25 +304,9 @@ architecture, the strongSwan and PBR integration and the LuCI interface are
 their work, and we are sincerely grateful to the original Russian author for
 building it and releasing it as open source.
 
-This repository is a fork that adds the Persian translation, right-to-left
-layout, and direct routing for Iranian destinations.
+Thanks also to dreamboxone for the Persian localization and additional features inherited by this continuation.
 
 ## License
 
 Released under the [MIT License](LICENSE). Terms for the optional lists
 downloaded at runtime are described in [NOTICE](NOTICE).
-
----
-
-## 💚 Support this project
-
-If this project has been useful to you, you can support it with Tether:
-
-**USDT — BEP20 (BSC) network only**
-
-```
-0x56daaa6b76d88ee0c8dba8042121f4b77de0a813
-```
-
-> [!WARNING]
-> This address is for USDT on the BEP20 (BSC) network only. Any other coin, or USDT sent over any other network, is lost.

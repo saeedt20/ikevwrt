@@ -10,7 +10,7 @@ PKG_NAME:=luci-app-ikev2-manager
 PKG_VERSION:=1.13.2
 PKG_RELEASE:=
 PKG_LICENSE:=MIT
-PKG_MAINTAINER:=nikitid
+PKG_MAINTAINER:=saeedt20
 PKGARCH:=all
 
 include $(INCLUDE_DIR)/package.mk
@@ -19,8 +19,8 @@ define Package/luci-app-ikev2-manager
   SECTION:=luci
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
-  TITLE:=IKEv2 Manager for OpenWrt
-	URL:=https://github.com/dreamboxone/ikev2-openwrt
+  TITLE:=IkevWrt - IKEv2 for OpenWrt
+	URL:=https://github.com/saeedt20/ikevwrt
   DEPENDS:= \
 	+luci-base \
 	+rpcd-mod-file \

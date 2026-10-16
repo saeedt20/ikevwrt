@@ -141,13 +141,13 @@ PY
 Depends: luci-base, rpcd-mod-file, jsonfilter, socat
 Section: luci
 Architecture: all
-Maintainer: nikitid
-Homepage: https://github.com/nikitid/ikev2-openwrt
-Source: https://github.com/nikitid/ikev2-openwrt
+Maintainer: saeedt20
+Homepage: https://github.com/saeedt20/ikevwrt
+Source: https://github.com/saeedt20/ikevwrt
 EOF
 	printf 'Installed-Size: %s\n' "$installed_size"
 	cat <<'EOF'
-Description: IKEv2 Manager for OpenWrt
+Description: IkevWrt - IKEv2 for OpenWrt
  LuCI application and runtime for an IPv4 IKEv2 client, an optional
  road-warrior IKEv2 server, domain PBR, device overrides and fail-closed
  routing on OpenWrt 24.10 and 25.12.
