@@ -17,6 +17,10 @@ Connect your router to an IKEv2 VPN, choose which traffic uses the tunnel, and m
 
 **Tested only on Xiaomi Redmi Router AX6S**, running **OpenWrt 25.12.5**, target **`mediatek/mt7622`**, architecture **`aarch64_cortex-a53`**. Other devices, firmware versions and IPK builds are unverified. This APK is an OpenWrt package, not an Android app or a firmware image.
 
+![IkevWrt Overview showing managed mode, routing and dependency checks with demo data](docs/images/overview-demo.jpg)
+
+*Application UI rendered locally with synthetic demo data. No live router information.*
+
 ## Features
 
 - **IKEv2 connections:** outbound VPN and optional inbound server with user and profile management.

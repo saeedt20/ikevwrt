@@ -23,6 +23,11 @@ state and private runbooks are excluded from the public tree. The router's
 pre-upgrade backup stays on the router; it is not a release asset. No live-router
 screenshot or network capture is published with this release.
 
+The README screenshot is a local preview rendered from the application's UI
+code with synthetic data and a clearly marked demo header. It is cropped above
+network and device fields. It does not connect to a router, and the published
+JPEG was checked for EXIF, location and comment metadata; none is present.
+
 Files under `keys/` are public verification keys, not signing secrets. Test
 credentials are synthetic fixtures; certificate tests generate temporary keys
 during execution.
