@@ -65,6 +65,7 @@ EOF
 cat >"$tmp/bin/pbr-init" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >>"$TEST_RESTARTS"
+[ "${TEST_PBR_FAIL:-0}" != 1 ]
 EOF
 
 chmod 755 "$tmp/bin"/*
@@ -97,6 +98,9 @@ run() {
 	IKEV2_IRAN_LOCK="$tmp/lock" \
 	IKEV2_IRAN_PBR_INIT="$tmp/bin/pbr-init" \
 	IKEV2_IRAN_UPTIME_FILE="$tmp/uptime" \
+	IKEV2_RUNTIME_LIB_DIR="$root/ikev2-manager-runtime/lib" \
+	IKEV2_ACTION_LOCK="$tmp/action.lock" \
+	IKEV2_ACTION_LOCK_STATUS="$tmp/action.lock.status" \
 	IKEV2_IRAN_MIN_DOMAINS=10 \
 	IKEV2_IRAN_MIN_CIDRS=10 \
 	sh "$helper" "$@"
@@ -183,6 +187,25 @@ run refresh-if-due >/dev/null || fail 'refresh-if-due failed while disabled'
 
 run status | grep -q '^enabled=0$' || fail 'status does not report the disabled state'
 run status | grep -q '^extra=' || fail 'status does not report the editable list size'
+
+# Exercise the same worker entry point used by LuCI and the daily refresh.
+run _run update first >/dev/null
+grep -Fxq 'state=ok' "$tmp/status" || fail 'background update failed'
+[ ! -d "$tmp/lock" ] || fail 'background update retained its lock'
+[ ! -d "$tmp/action.lock" ] || fail 'background update retained the global lock'
+TEST_PBR_FAIL=1 run _run disable failed-disable >/dev/null
+grep -Fxq 'state=error' "$tmp/status" || fail 'disable hid a routing restart failure'
+run status >"$tmp/after-failure"
+grep -Fxq 'enabled=1' "$tmp/after-failure" || fail 'failed disable was not rolled back'
+[ ! -d "$tmp/lock" ] || fail 'failed disable retained its lock'
+run _run disable second >/dev/null
+grep -Fxq 'state=ok' "$tmp/status" || fail 'disable after an update failed'
+
+TEST_PBR_FAIL=1 run _run update failed >/dev/null
+grep -Fxq 'state=error' "$tmp/status" || fail 'routing restart failure was hidden'
+run status >"$tmp/after-failure"
+grep -Fxq 'enabled=0' "$tmp/after-failure" || fail 'failed enable was not rolled back'
+[ ! -d "$tmp/lock" ] || fail 'failed worker retained its lock'
 
 rm -f /tmp/ikev2-iran-input-testtoken.txt
 printf 'test-iran-direct OK\n'

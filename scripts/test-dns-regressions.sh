@@ -150,7 +150,6 @@ grep -Fq 'tunnel_resolve=' "$root/ikev2-manager-runtime/ikev2-manager-system.sh"
 grep -Fq "[ 'tunnel-resolve', wanted ]" "$client"
 grep -Fq 'Resolve all names through the tunnel' "$client"
 grep -Fq 'it also removes the fallback group' "$client"
-grep -Fq 'Resolve all names through the tunnel' "$root/luci-ikev2-manager/shared.js"
 # The tunnel DNS block applies on its own; an unchanged path is not re-applied.
 grep -Fq 'tunnelDnsApply.addEventListener' "$client"
 grep -Fq "writeClientInput('save')" "$client"
@@ -594,7 +593,7 @@ if sed -n '/^pause_routing()/,/^}/p' "$root/ikev2-manager-runtime/ikev2-domain-r
 	exit 1
 fi
 grep -Fq '"/usr/libexec/ikev2-manager-system routing-pause-async"' "$root/luci-ikev2-manager/acl.json"
-grep -Fq 'Pause tunnel routing' "$root/luci-ikev2-manager/shared.js"
+grep -Fq 'Pause tunnel routing' "$root/luci-ikev2-manager/setup.js"
 # The page reads the paused flag from show_config, so it has to be emitted there
 # and not from some other reporter that happens to share the same first line.
 sed -n '/^show_config()/,/^}/p' "$system" | grep -Fq 'routing_paused=%s'

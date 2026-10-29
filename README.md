@@ -1,332 +1,61 @@
-<div dir="rtl">
+<h1 align="center">IkevWrt</h1>
+<p align="center">IKEv2 VPN and policy routing for OpenWrt, managed through LuCI.</p>
+<p align="center">
+  <a href="https://github.com/saeedt20/ikevwrt/releases/latest"><img src="https://img.shields.io/github/v/release/saeedt20/ikevwrt" alt="Latest release"></a>
+  <a href="https://github.com/saeedt20/ikevwrt/actions/workflows/ci.yml"><img src="https://github.com/saeedt20/ikevwrt/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/tested-Redmi_AX6S-blue" alt="Tested on Redmi AX6S only">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/saeedt20/ikevwrt/releases/latest">Download APK</a> ·
+  <a href="docs/USAGE.md">User guide</a> ·
+  <a href="docs/AUDIT-FIXES.md">Validation</a> ·
+  <a href="https://github.com/saeedt20/ikevwrt/issues">Report an issue</a>
+</p>
 
-# IkevWrt — مدیریت IKEv2 برای OpenWrt
+Connect your router to an IKEv2 VPN, choose which traffic uses the tunnel, and manage an optional inbound VPN server through an English-only interface.
 
-[![CI](https://github.com/saeedt20/ikevwrt/actions/workflows/ci.yml/badge.svg)](https://github.com/saeedt20/ikevwrt/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+**Tested only on Xiaomi Redmi Router AX6S**, running **OpenWrt 25.12.5**, target **`mediatek/mt7622`**, architecture **`aarch64_cortex-a53`**. Other devices, firmware versions and IPK builds are unverified. This APK is an OpenWrt package, not an Android app or a firmware image.
 
-**[English documentation](README.en.md)**
+## Features
 
-یک برنامه با رابط گرافیکی LuCI که روتر OpenWrt شما را به یک سرور IKEv2 وصل
-می‌کند، مشخص می‌کند کدام ترافیک از تونل عبور کند، و در صورت نیاز روتر را به یک
-سرور IKEv2 برای موبایل و لپ‌تاپ شما تبدیل می‌کند.
+- **IKEv2 connections:** outbound VPN and optional inbound server with user and profile management.
+- **Policy routing:** domain and device rules, FakeIP routing, direct-routing lists and pause/resume.
+- **DNS controls:** managed resolvers, encrypted DNS and tunnel DNS policies.
+- **Safer changes:** validation, rollback, fail-closed rules and runtime health checks.
 
-همهٔ تنظیمات در UCI ذخیره می‌شوند و برنامه به strongSwan، PBR، sing-box،
-dnsmasq و nftables دست نمی‌زند مگر آنکه خودتان صریحاً اجازه بدهید.
+## Download and install
 
-## فهرست
-
-۱. [نصب](#۱-نصب)
-۲. [راهنمای گزینه‌ها](#۲-راهنمای-گزینهها)
-۳. [حذف برنامه](#۳-حذف-برنامه)
-- [عیب‌یابی](#عیبیابی)
-- [ساخت از سورس](#ساخت-از-سورس)
-- [قدردانی](#قدردانی)
-
----
-
-## ۱. نصب
-
-### پیش از هر کاری
-
-- از تنظیمات روتر **backup** بگیرید (`System → Backup / Flash Firmware`).
-- فضای آزاد کافی داشته باشید؛ وابستگی‌ها (strongSwan، PBR، sing-box،
-  `dnsmasq-full` و `dnsproxy`) حجم قابل‌توجهی می‌گیرند.
-- از یک شبکهٔ پایدار به LuCI وصل باشید، چون هنگام نصب وابستگی‌ها ممکن است
-  DNS/DHCP چند لحظه restart شود.
-
-### گام ۱: مشخص کنید روتر شما کدام بسته را می‌خواهد
-
-روی روتر (از طریق SSH) این دستور را بزنید:
-
-<div dir="ltr">
+1. Back up your router settings and confirm the exact model, release, target and architecture above.
+2. Download the APK and `SHA256SUMS.apk` from [Releases](https://github.com/saeedt20/ikevwrt/releases/latest), then copy both to `/tmp` on the router.
+3. Verify and install:
 
 ```sh
-cat /etc/openwrt_release
-apk --print-arch 2>/dev/null || opkg print-architecture
+cd /tmp
+sha256sum -c SHA256SUMS.apk
+apk add --allow-untrusted /tmp/luci-app-ikev2-manager-1.13.3.apk
 ```
 
-</div>
+The APK is **unsigned**; verify its checksum before using `--allow-untrusted`. Upgrade over the existing package to retain settings. Avoid a system-wide `apk upgrade`.
 
-- اگر دستور `apk` جواب داد ← روتر شما **APK** می‌خواهد (OpenWrt 25.12 و بالاتر).
-- اگر فقط `opkg` وجود داشت ← روتر شما **IPK** می‌خواهد (OpenWrt 24.10).
+Open **Services → IKEv2 Manager** in LuCI. For a fresh installation, prepare dependencies on **Overview**, review the readiness checks, then configure the WAN, protected networks and VPN connection. See the [user guide](docs/USAGE.md) for setup and removal.
 
-این دو با هم قابل جایگزینی نیستند. فیلدهای `version`، `target` و `DISTRIB_ARCH`
-باید دقیقاً با فایلی که دانلود می‌کنید هم‌خوان باشند.
+## Verification and privacy
 
-### گام ۲-الف: نصب روی OpenWrt 24.10 (فایل IPK)
+v1.13.3 passed local CI, an AX6S installation and VPN/DNS smoke checks. Reboot recovery, sustained load and native Windows installation remain untested; see the [audit and validation record](docs/AUDIT-FIXES.md).
 
-آخرین فایل `luci-app-ikev2-manager_*_all.ipk` را از
-[بخش Releases](https://github.com/saeedt20/ikevwrt/releases) دانلود کنید.
+Router backups, credentials, private keys and live network captures are excluded from the published source and APK. See the [publication privacy review](docs/PRIVACY.md). Remove these details from any issue or diagnostic report you share.
 
-**از طریق LuCI:**
+## Development
 
-۱. به `System → Software → Upload Package` بروید.
-۲. فایل IPK را انتخاب و نصب کنید.
-۳. به `Services → IKEv2 Manager` بروید.
-
-**یا از طریق SSH:**
-
-<div dir="ltr">
-
-```sh
-scp -O luci-app-ikev2-manager_*_all.ipk root@ROUTER:/tmp/
-scp -O scripts/install.sh root@ROUTER:/tmp/
-ssh root@ROUTER
-chmod +x /tmp/install.sh
-/tmp/install.sh /tmp/luci-app-ikev2-manager_*_all.ipk
-```
-
-</div>
-
-### گام ۲-ب: نصب روی OpenWrt 25.12 (فایل APK)
-
-فقط APK ساخته‌شده برای همان release، target و architecture روتر خودتان را
-دانلود کنید. مقدار SHA-256 منتشرشده کنار Release را پیش از نصب بررسی کنید.
-APKهای انتشار عمداً امضا نشده‌اند، پس نصب به `--allow-untrusted` نیاز دارد:
-
-<div dir="ltr">
-
-```sh
-apk add --allow-untrusted /tmp/luci-app-ikev2-manager_*.apk
-```
-
-</div>
-
-> از `apk upgrade` بدون نام بسته استفاده نکنید؛ ممکن است kernel moduleهای
-> نامرتبط روتر را عوض کند.
-
-### گام ۳: نصب وابستگی‌ها
-
-به `Services → IKEv2 Manager → نمای کلی` بروید و دکمهٔ **نصب وابستگی‌ها** را
-بزنید. برنامه اول release، feedها، فضای ذخیره‌سازی و سازگاری بسته‌ها را بررسی
-می‌کند و بعد نصب را شروع می‌کند.
-
-تا وقتی همهٔ بررسی‌های بخش «وابستگی‌های زمان اجرا» **سبز** نشده‌اند، به گام
-بعدی نروید.
-
-### گام ۴: فعال‌سازی برنامه
-
-در همان صفحهٔ نمای کلی:
-
-۱. **شبکه WAN** را انتخاب کنید (همان uplink واقعی روتر).
-۲. **شبکه‌های محافظت‌شده** را انتخاب کنید (معمولاً `lan`).
-۳. کلید **فعال‌سازی برنامه** را روشن کنید و Apply بزنید.
-
-### گام ۵: وارد کردن اکانت
-
-به برگهٔ **تونل خروجی** بروید و در بخش «اتصال» این‌ها را پر کنید:
-
-| فیلد | مقدار |
-| --- | --- |
-| آدرس سرور | آدرس IPv4 یا نام دامنهٔ سرور IKEv2 |
-| شناسه سرور | معمولاً همان نام دامنهٔ گواهی سرور |
-| نام کاربری EAP | نام کاربری اکانت شما |
-| روش احراز هویت | `EAP-MSCHAPv2` برای اکانت‌های نام‌کاربری/رمز |
-| رمز عبور EAP جدید | رمز اکانت شما |
-
-سپس **ذخیره و اعمال** و بعد **اتصال** را بزنید. نتیجه در کارت وضعیت همین صفحه
-و در `Status → Overview` دیده می‌شود.
-
-> تا وقتی اتصال خروجی سالم نشده، هیچ دامنه یا دستگاهی را به سیاست VPN اضافه
-> نکنید. اول با یک مقصد آزمایشی مطمئن شوید.
-
----
-
-## ۲. راهنمای گزینه‌ها
-
-### برگهٔ نمای کلی
-
-نقطهٔ شروع هر نصب. تا سبز نشدن بررسی‌ها، برنامه را فعال نکنید.
-
-| گزینه | کاربرد | نکتهٔ عملی |
-| --- | --- | --- |
-| **نصب وابستگی‌ها** | بسته‌های نبودهٔ VPN، DNS و PBR را نصب می‌کند. | ممکن است برای جایگزینی `dnsmasq-full`، سرویس DNS/DHCP لحظه‌ای restart شود. |
-| **توقف / ادامهٔ مسیریابی تونل** | مقصدهای انتخاب‌شده را موقتاً به‌جای VPN از WAN می‌فرستد، بدون پاک‌کردن تنظیمات. | در حالت توقف، تضمین fail-closed وجود ندارد. فقط برای عیب‌یابی یا دسترسی اضطراری. |
-| **شبکه WAN** | رابط اینترنت اصلی روتر. | باید uplink واقعی باشد. سرور ورودی هم از UDP 500 و 4500 همین WAN استفاده می‌کند. |
-| **شبکه‌های محافظت‌شده** | شبکه‌های LAN/VLAN که سیاست VPN روی آن‌ها اعمال می‌شود. | WAN یا شبکهٔ مدیریتی بیرونی را انتخاب نکنید. |
-| **فعال‌سازی برنامه** | مالکیت route، PBR، DNS و firewall را به برنامه می‌دهد. | پیش از حذف برنامه یا تغییر عمدهٔ شبکه، خاموشش کنید. |
-| **قواعد دستگاه‌ها** | فهرست دستگاه‌های LAN و استثناهای آن‌ها. | هر استثنا می‌تواند PBR، رهگیری DNS و DPI را جداگانه دور بزند. |
-| **هدایت DNS ساده** | پورت ۵۳ دستگاه‌های محافظت‌شده را به DNS روتر می‌برد. | برای کارکرد درست مسیردهی دامنه مفید است. |
-| **مسدودسازی DNS-over-TLS** | خروجی پورت ۸۵۳ به WAN را می‌بندد. | جلوی دور زدن دسته‌بندی دامنه را می‌گیرد، ولی بعضی کلاینت‌ها را تحت تأثیر قرار می‌دهد. |
-| **بازنشانی برنامه** | برنامه را برای حذف آماده می‌کند و وضعیت مدیریت‌شده را برمی‌گرداند. | تنظیمات، کاربرها و رمزها پاک می‌شوند. اول backup بگیرید. |
-
-بخش **وابستگی‌های زمان اجرا** فقط وضعیت را نشان می‌دهد. اگر نسخه‌های strongSwan
-ناهمگون نصب شده باشند، برنامه عمداً آن‌ها را مخلوط نمی‌کند؛ اول firmware و
-feedهای رسمی را درست کنید.
-
-### برگهٔ تونل خروجی
-
-اتصال **روتر شما به سرور VPN**. با برگهٔ سرور ورودی اشتباه نگیرید.
-
-| گزینه | مقدار/رفتار | پیشنهاد |
-| --- | --- | --- |
-| **فعال بودن کلاینت** | به سرویس نگهبان اجازه می‌دهد بعد از boot و قطع WAN، اتصال را خودش برگرداند. | بعد از یک اتصال دستی موفق روشن کنید. |
-| **آدرس سرور** | IPv4 یا نام دامنهٔ سرور. | نام دامنه باید از خود روتر resolve شود. |
-| **شناسه سرور** | هویتی که در گواهی سرور انتظار می‌رود. | معمولاً FQDN گواهی سرور است، نه IP. |
-| **نام کاربری EAP** و **رمز عبور EAP جدید** | اطلاعات اکانت برای روش EAP-MSCHAPv2. | رمز فقط نوشتنی است؛ خالی گذاشتنش رمز قبلی را حفظ می‌کند. |
-| **روش احراز هویت** | `EAP-MSCHAPv2`، `Certificate (X.509)` یا `EAP-TLS`. | فقط روشی که سرور واقعاً فعال کرده. |
-| **مسیر گواهی و کلید خصوصی** | فقط برای دو روش مبتنی بر گواهی. می‌توانید مسیر فایل روی روتر را بنویسید یا فایل را از رایانه بارگذاری کنید. | فایل حداکثر ۶۴ کیلوبایت، قالب PEM، کلید خصوصی بدون رمز. |
-| **گواهی CA** | ریشهٔ اعتماد برای بررسی گواهی سرور. | بررسی گواهی را دور نزنید؛ خطای CA را با chain درست سرور حل کنید. |
-| **DPD، MTU، rekey و reauth** | تایمر زنده‌بودن، اندازهٔ بسته و زمان نوسازی SA. | مقادیر پیشنهادی را تغییر ندهید مگر دلیل مشخصی باشد. MTU کوچک‌تر برای شبکه‌های محدود مفید است. |
-| **پیکربندی سفارشی strongSwan** | profile تولیدشده را با تنظیم خام جایگزین می‌کند. | فقط کاربر متخصص. در این حالت فرم عادی تا بازگشت به حالت تولیدشده اثری ندارد. |
-| **اتصال / قطع اتصال** | برقراری یا خاتمهٔ تونل خروجی. | «اتصال» اول اعتبارسنجی می‌کند و علت خطا را گزارش می‌دهد. |
-
-**DNS تونل** نام مقصدهای VPN را از داخل تونل resolve می‌کند؛ اولین endpoint
-اصلی است و بقیه fallback ترتیبی‌اند. bootstrap باید IPهای معتبر IPv4 روی پورت
-۵۳ باشد.
-
-**بخش‌های DNS مقصد** برای پسوندهای مشخص (مثلاً یک دامنهٔ سازمانی) گروه resolver
-مستقل می‌سازد. پسوند متداخل بین دو بخش پذیرفته نمی‌شود.
-
-### برگهٔ مدیریت مسیریابی
-
-این برگه **سرور VPN را تغییر نمی‌دهد**؛ فقط تعیین می‌کند ترافیک شبکه‌های
-محافظت‌شده به کدام مقصدها وارد تونل شود.
-
-| بخش | شرح |
-| --- | --- |
-| **مقصدهای ایران از راه WAN** | با یک کلید، فهرست دامنه‌ها و رنج‌های IP ایران دریافت و اعتبارسنجی می‌شود و قواعد WAN **پیش از** قواعد VPN قرار می‌گیرند. زیربخش «افزوده‌های شما» می‌گذارد دامنه یا شبکهٔ دلخواه خودتان را اضافه کنید. فهرست‌ها روزانه به‌روز می‌شوند و دکمهٔ «به‌روزرسانی فهرست‌ها» همین کار را فوری انجام می‌دهد. |
-| **موتور مسیریابی دامنه** | حالت استاندارد دامنه را با IP عمومی‌اش دسته‌بندی می‌کند. حالت پایدار از FakeIP/TProxy استفاده می‌کند و با تغییر IP مقصد پایدارتر است. برای سرویس‌های دارای CDN، حالت پایدار بهتر است. |
-| **مسیردهی سرویس‌های خود روتر** | در حالت پایدار، درخواست‌های خود روتر به دامنه‌های انتخاب‌شده را هم از تونل می‌برد. آدرس‌های مدیریتی محلی مستقیم می‌مانند. |
-| **گزارش‌گیری** | «خطاها» و «هشدارها» برای استفادهٔ روزمره مناسب‌اند. سطوح بالاتر log روتر را سریع پر می‌کنند. ثبت موقت فقط ۶۰ ثانیه است. |
-| **سرویس‌ها** | چیپ سرویس را انتخاب و سپس دکمهٔ ذخیرهٔ صفحه را بزنید؛ انتخاب چیپ به‌تنهایی اعمال نمی‌شود. سرویس‌های «گسترده» ممکن است سایت‌های نامرتبط را هم از تونل ببرند. |
-| **مدیریت سرویس‌ها** | سرویس آماده را می‌بینید/ویرایش می‌کنید یا سرویس تازه می‌سازید. شناسه فقط حروف کوچک، رقم و زیرخط و بعداً غیرقابل تغییر است. |
-| **دامنه‌های سفارشی** | هر خط یک دامنه مانند `example.com`؛ زیردامنه‌ها خودکار شامل می‌شوند و با به‌روزرسانی سرویس‌ها پاک نمی‌شود. |
-| **آدرس‌ها و شبکه‌های سفارشی** | هر خط یک IPv4 یا CIDR مانند `203.0.113.0/24`؛ بدون نیاز به DNS کار می‌کند. شبکهٔ خیلی گسترده وارد نکنید. |
-
-بعد از ذخیره، کارت وضعیت سیاست را ببینید. اگر تونل قطع باشد، مقصدهای
-انتخاب‌شده مسدود می‌شوند؛ این خطا نیست، همان رفتار fail-closed است.
-
-> **دربارهٔ فهرست ایران:** داده از پروژهٔ
-> [Iran-clash-rules](https://github.com/Chocolate4U/Iran-clash-rules) (مجوز
-> GPL-3.0) هنگام فعال‌سازی روی روتر دریافت می‌شود و داخل بستهٔ برنامه کپی نشده
-> است. هیچ فهرستی نمی‌تواند همهٔ سرویس‌ها، IPهای تازه یا CDNهای مشترک را
-> بی‌خطا تشخیص دهد. ترافیکی که مستقیم به IP ناشناخته می‌رود یا DNS آن بیرون از
-> روتر حل می‌شود، ممکن است فقط از روی دامنه شناسایی نشود. اگر دریافت فهرست
-> ناموفق باشد، تنظیمات قبلی حفظ می‌شوند.
-
-### برگهٔ سرور ورودی (اختیاری)
-
-فقط وقتی لازم است که بخواهید موبایل یا لپ‌تاپ‌تان از بیرون به **خود روتر** وصل
-شود. برای استفادهٔ صرف از تونل خروجی، خاموش نگهش دارید.
-
-| گزینه | کاربرد |
-| --- | --- |
-| **فعال بودن و هویت عمومی** | فعال‌سازی سرور و نام DNS عمومی موجود در گواهی. باید از اینترنت به WAN روتر برسد. |
-| **محدودهٔ IP کاربران و gateway** | محدودهٔ اختصاصی کاربران ورودی. نباید با LAN، WAN یا محدودهٔ دیگری هم‌پوشانی داشته باشد. |
-| **DNS کاربران VPN** | DNSی که به کلاینت ورودی داده می‌شود؛ معمولاً IP روتر. |
-| **انتخابگرهای ترافیک** | تعیین می‌کند کاربر ورودی همهٔ ترافیکش را از تونل بفرستد یا فقط شبکه‌های داخلی را ببیند. |
-| **zoneهای روتر و WAN** | خودکارند؛ فقط در توپولوژی غیرعادی تغییرشان دهید. |
-| **MTU، DPD، rekey، reauth** | رفتار نشست ورودی. مقادیر پیشنهادی برای حالت معمول مناسب‌اند. |
-| **سیاست دسترسی سراسری** | دسترسی پیش‌فرض همهٔ کاربران به روتر، پورت‌های عمومی، اینترنت و LAN. برگهٔ کاربران می‌تواند برای یک کاربر override کند. |
-| **ویرایش پیکربندی خام** | کل profile تولیدشده را جایگزین می‌کند. بازگشت با «بازنشانی به حالت تولیدشده». |
-
-**گواهی ACME:** برای اینکه دستگاه‌ها به سرور ورودی اعتماد کنند گواهی معتبر لازم
-است. در روش DNS-01، provider و اطلاعات API را وارد کنید. در روش HTTP-01، پورت
-۸۰ باید از اینترنت به روتر برسد. اول «ذخیرهٔ تنظیمات ACME» و بعد «درخواست
-گواهی». حالت staging فقط آزمایشی است.
-
-### برگهٔ کاربران VPN
-
-فقط با سرور ورودی فعال معنی دارد.
-
-| گزینه | کاربرد |
-| --- | --- |
-| **افزودن کاربر** | نام کاربری و رمز می‌سازد. برای هر دستگاه یک حساب جدا بسازید. |
-| **سیاست دسترسی** | از سیاست سراسری سرور ارث می‌برد یا برای همان کاربر تغییرش می‌دهد. |
-| **دسترسی به روتر** | دسترسی کاربر به خود روتر. |
-| **پورت‌های عمومی روتر** | پورت‌های TCP/UDP مجاز؛ حتی اگر دسترسی به روتر بسته باشد، این پورت‌ها باز می‌مانند. |
-| **دسترسی به اینترنت** | اجازهٔ خروج عادی به WAN. |
-| **دسترسی به شبکهٔ محلی** | همهٔ شبکه‌ها، فقط آدرس‌های انتخابی، یا هیچ‌کدام. |
-| **مشارکت در PBR** | کاربر از سیاست مسیریابی پروژه پیروی کند یا مستقیم از WAN برود. |
-| **دانلود profile** | فایل اتصال iOS، ویندوز یا اندروید همان کاربر را می‌سازد. فایل Apple/Android شامل رمز است؛ بعد از import حذفش کنید. |
-| **تغییر رمز / حذف / قطع اتصال** | رمز را عوض، کاربر را حذف، یا نشست فعال را قطع می‌کند. |
-| **ثبت ۶۰ ثانیه‌ای** | برای عیب‌یابی خطای اتصال ورودی، trace کوتاه strongSwan می‌گیرد. |
-
----
-
-## ۳. حذف برنامه
-
-ترتیب زیر را رعایت کنید تا route، PBR، DNS و firewall روتر به حالت قبل برگردند:
-
-۱. در برگهٔ **نمای کلی**، کلید **فعال‌سازی برنامه** را **خاموش** کنید و Apply بزنید.
-۲. اگر می‌خواهید تنظیمات، کاربرها و رمزها هم پاک شوند، دکمهٔ **بازنشانی برنامه**
-   را بزنید. (قبلش backup بگیرید.)
-۳. بسته را حذف کنید:
-
-<div dir="ltr">
-
-```sh
-# OpenWrt 25.12
-apk del luci-app-ikev2-manager
-
-# OpenWrt 24.10
-opkg remove luci-app-ikev2-manager
-```
-
-</div>
-
-> اگر مرحلهٔ ۱ را رد کنید، ممکن است قواعد مسیریابی و firewall روی روتر باقی
-> بمانند. در صورت بروز خطا هنگام حذف، اول `doctor` را از صفحهٔ نمای کلی اجرا
-> کنید.
-
-**به‌روزرسانی** ساده است: نصب نسخهٔ جدید IPK یا APK، تنظیمات، کاربرها، گواهی‌ها
-و فهرست‌های شخصی شما را حفظ می‌کند.
-
----
-
-## عیب‌یابی
-
-نشانه‌های یک اتصال خروجی سالم: وجود CHILD_SA با نام `proxy4`، آدرس مجازی روی
-`ipsec-out`، و اجرا بودن PBR و سرویس نگهبان.
-
-اگر اتصال برقرار نشد، به ترتیب بررسی کنید: نام دامنه و شناسهٔ سرور، گواهی CA،
-تاریخ و ساعت روتر، روش احراز هویت، و log‌های strongSwan. بعد وابستگی‌ها را بدون
-تغییر نسخه‌ها repair کنید.
-
-راهنمای کامل‌تر: [عملیات و تشخیص خطا](docs/OPERATIONS.md)
-
-## ساخت از سورس
-
-<div dir="ltr">
+With Node.js, Python 3, jq, OpenSSL and Mono installed:
 
 ```sh
 ./scripts/ci-check.sh
 ```
 
-</div>
+APK builds require the matching official OpenWrt SDK. See [build and compatibility notes](docs/OPENWRT25.md), [operations](docs/OPERATIONS.md) and the [repository map](docs/MAP.md).
 
-فایل IPK در پوشهٔ `dist/` ساخته می‌شود. برای APK به SDK رسمی همان target نیاز
-است؛ جزئیات در [OpenWrt 25.12 و APK](docs/OPENWRT25.md).
+## License and credits
 
-## مستندات
-
-- [نقشهٔ مخزن](docs/MAP.md)
-- [عملیات و تشخیص خطا](docs/OPERATIONS.md)
-- [سازگاری OpenWrt 25.12 و APK](docs/OPENWRT25.md)
-- [معماری](docs/ARCHITECTURE.md)
-- [NOTICE فهرست‌های خارجی](NOTICE)
-
-## آغاز IkevWrt
-
-IkevWrt ادامهٔ مستقلی از [dreamboxone/ikev2-openwrt](https://github.com/dreamboxone/ikev2-openwrt) با نگهداری [saeedt20](https://github.com/saeedt20) است. مبنای آغاز، کامیت `048eb13` از نسخهٔ `1.13.2` است. ترجمهٔ فارسی، چیدمان راست‌به‌چپ و مسیردهی مستقیم مقصدهای ایرانی از آن مخزن به ارث رسیده‌اند.
-
-بسته‌ها و مسیرهای داخلی فعلاً نام `luci-app-ikev2-manager` را حفظ می‌کنند. هنوز نسخه‌ای از IkevWrt منتشر نشده است؛ دستورهای دانلود پس از انتشار اولین نسخه قابل استفاده خواهند بود. تنظیمات feed و کلید عمومی APK همچنان متعلق به upstream هستند و انتشار مستقل امضاشده به تنظیم feed و کلید مخصوص این پروژه نیاز دارد.
-
-## قدردانی
-
-این پروژه بر پایهٔ کار **[Nikitid](https://github.com/Nikitid)** و مخزن اصلی
-[Nikitid/ikev2-openwrt](https://github.com/Nikitid/ikev2-openwrt) ساخته شده
-است. معماری اصلی برنامه، یکپارچگی با strongSwan و PBR، و رابط LuCI حاصل
-زحمت ایشان است. از نویسندهٔ روسی پروژه بابت این کار ارزشمند و انتشار آن به
-صورت متن‌باز صمیمانه سپاسگزاریم.
-
-از dreamboxone بابت تغییرات فارسی و قابلیت‌های افزوده‌شده نیز قدردانی می‌کنیم.
-
-## مجوز
-
-این پروژه تحت [MIT License](LICENSE) منتشر شده است. شرایط فهرست‌های اختیاری که
-در زمان اجرا از بیرون دریافت می‌شوند در [NOTICE](NOTICE) توضیح داده شده است.
-
-</div>
+[MIT](LICENSE). Based on [Nikitid/ikev2-openwrt](https://github.com/Nikitid/ikev2-openwrt), with inherited work from [dreamboxone/ikev2-openwrt](https://github.com/dreamboxone/ikev2-openwrt). Maintained by [@saeedt20](https://github.com/saeedt20). External lists retain their own terms; see [NOTICE](NOTICE).

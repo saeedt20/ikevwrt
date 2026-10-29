@@ -93,10 +93,10 @@ namespace Nikitid.IkeV2ProfileInstaller
                 Location = new Point(44, 43),
                 BackColor = AppPalette.Surface
             });
-            browseButton = MakeButton("Выбрать XML", 540, 44, 136, false, BrowseProfile);
+            browseButton = MakeButton("Browse XML", 540, 44, 136, false, BrowseProfile);
             card.Controls.Add(browseButton);
             card.Controls.Add(new Label {
-                Text = "Настройка защищённого подключения Windows",
+                Text = "Set up a secure Windows connection",
                 Font = new Font("Segoe UI", 9.5F),
                 ForeColor = AppPalette.Muted,
                 AutoSize = true,
@@ -104,7 +104,7 @@ namespace Nikitid.IkeV2ProfileInstaller
                 BackColor = AppPalette.Surface
             });
             card.Controls.Add(new Label {
-                Text = "Имя подключения\n\nСервер\nDNS через VPN\nРежим",
+                Text = "Connection name\n\nServer\nVPN DNS\nRouting",
                 ForeColor = AppPalette.Muted,
                 AutoSize = true,
                 Location = new Point(44, 124),
@@ -162,14 +162,14 @@ namespace Nikitid.IkeV2ProfileInstaller
             };
             card.Controls.Add(statusDot);
 
-            installButton = MakeButton("Установить", 540, 336, 136, true, InstallProfile);
-            removeButton = MakeButton("Удалить", 374, 336, 136, false, RemoveProfile);
-            openButton = MakeButton("Открыть VPN", 209, 336, 136, false, OpenVpnSettings);
+            installButton = MakeButton("Install", 540, 336, 136, true, InstallProfile);
+            removeButton = MakeButton("Remove", 374, 336, 136, false, RemoveProfile);
+            openButton = MakeButton("Open VPN", 209, 336, 136, false, OpenVpnSettings);
             card.Controls.Add(openButton);
             card.Controls.Add(removeButton);
             card.Controls.Add(installButton);
 
-            Button diagnostics = MakeButton("Журнал", 44, 336, 136, false, OpenLog);
+            Button diagnostics = MakeButton("Log", 44, 336, 136, false, OpenLog);
             card.Controls.Add(diagnostics);
             AcceptButton = installButton;
             Shown += FormShown;
@@ -183,7 +183,7 @@ namespace Nikitid.IkeV2ProfileInstaller
             else if (profile != null && automaticOperation == "remove")
                 RunElevated("remove", delegate {
                     VpnProfileStore.Remove(profile.Name);
-                    return "Профиль удалён.";
+                    return "Profile removed.";
                 });
         }
 
@@ -196,8 +196,8 @@ namespace Nikitid.IkeV2ProfileInstaller
         private Button MakeButton(string text, int x, int y, int width,
             bool primary, EventHandler handler)
         {
-            bool danger = text == "Удалить";
-            bool ghost = text == "Журнал";
+            bool danger = text == "Remove";
+            bool ghost = text == "Log";
             Button button = new ModernButton(primary ? ButtonRole.Primary :
                 (danger ? ButtonRole.Danger : (ghost ? ButtonRole.Ghost : ButtonRole.Secondary))) {
                 Text = text,
@@ -214,8 +214,8 @@ namespace Nikitid.IkeV2ProfileInstaller
         private void BrowseProfile(object sender, EventArgs args)
         {
             using (OpenFileDialog dialog = new OpenFileDialog {
-                Title = "Выберите профиль VPNv2 XML",
-                Filter = "Профиль VPNv2 (*.vpnv2.xml)|*.vpnv2.xml|XML-файл (*.xml)|*.xml",
+                Title = "Choose a VPNv2 XML profile",
+                Filter = "VPNv2 profile (*.vpnv2.xml)|*.vpnv2.xml|XML file (*.xml)|*.xml",
                 CheckFileExists = true,
                 Multiselect = false,
                 RestoreDirectory = true
@@ -240,14 +240,14 @@ namespace Nikitid.IkeV2ProfileInstaller
             profile = value;
             nameTextBox.Text = value.Name;
             detailsValueLabel.Text = value.Server + "\n" + value.DnsServers + "\n" +
-                (value.ForceTunnel ? "Весь трафик через VPN" : "Раздельная маршрутизация");
+                (value.ForceTunnel ? "All traffic through VPN" : "Split tunneling");
         }
 
         private void RefreshStatus()
         {
 			if (profile == null)
 			{
-				SetStatus("Выберите XML-профиль, чтобы продолжить.", AppPalette.Muted);
+				SetStatus("Choose an XML profile to continue.", AppPalette.Muted);
 				installButton.Enabled = false;
 				removeButton.Enabled = false;
 				openButton.Enabled = true;
@@ -257,9 +257,9 @@ namespace Nikitid.IkeV2ProfileInstaller
 			nameTextBox.Enabled = true;
 			if (!Elevation.IsAdministrator())
 			{
-				SetStatus("Можно установить или обновить профиль.",
+				SetStatus("Ready to install or update the profile.",
 					AppPalette.Accent);
-				installButton.Text = "Установить";
+				installButton.Text = "Install";
 				installButton.Enabled = true;
 				removeButton.Enabled = true;
 				openButton.Enabled = true;
@@ -270,16 +270,16 @@ namespace Nikitid.IkeV2ProfileInstaller
             {
                 bool installed = VpnProfileStore.Exists(profile.Name);
                 SetStatus(installed
-                    ? "Профиль установлен. Его можно безопасно обновить."
-                    : "Профиль ещё не установлен.", installed ?
+                    ? "Profile installed. Ready to update."
+                    : "Profile is not installed.", installed ?
                     AppPalette.Success : AppPalette.Accent);
-                installButton.Text = installed ? "Обновить" : "Установить";
+                installButton.Text = installed ? "Update" : "Install";
                 removeButton.Enabled = installed;
                 openButton.Enabled = installed;
             }
             catch (Exception exception)
             {
-                SetStatus("Не удалось прочитать состояние: " +
+                SetStatus("Unable to read status: " +
                     ExceptionText.Format(exception), AppPalette.Error);
                 removeButton.Enabled = false;
             }
@@ -289,7 +289,7 @@ namespace Nikitid.IkeV2ProfileInstaller
         {
             RunElevated("install", delegate {
                 VpnProfileStore.Install(profile);
-                return "Профиль установлен и проверен. Откройте VPN и подключитесь.";
+                return "Profile installed and verified. Open VPN to connect.";
             });
         }
 
@@ -305,14 +305,14 @@ namespace Nikitid.IkeV2ProfileInstaller
                 nameTextBox.Focus();
                 return;
             }
-            if (MessageBox.Show("Удалить VPN-профиль «" + profile.Name + "»?",
+            if (MessageBox.Show("Remove VPN profile \"" + profile.Name + "\"?",
                     "Nikitid IKEv2 Setup", MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question) != DialogResult.Yes)
                 return;
 
             RunElevated("remove", delegate {
                 VpnProfileStore.Remove(profile.Name);
-                return "Профиль удалён.";
+                return "Profile removed.";
             });
         }
 
@@ -369,17 +369,17 @@ namespace Nikitid.IkeV2ProfileInstaller
                         }
                     };
                     SetBusy(true);
-                    SetStatus("Подтвердите действие в окне контроля учётных записей Windows.",
+                    SetStatus("Approve the Windows User Account Control prompt.",
                         AppPalette.Accent);
                     if (!process.Start())
-                        throw new InvalidOperationException("Windows не запустила служебную операцию.");
+                        throw new InvalidOperationException("Windows could not start the operation.");
                 }
                 catch (System.ComponentModel.Win32Exception exception)
                 {
                     WorkerResult.Delete(resultPath);
                     SetBusy(false);
                     if (exception.NativeErrorCode == 1223)
-                        SetStatus("Операция отменена.", AppPalette.Muted);
+                        SetStatus("Operation cancelled.", AppPalette.Muted);
                     else
                         ShowFailure(operation, exception);
                 }
@@ -438,13 +438,13 @@ namespace Nikitid.IkeV2ProfileInstaller
 
             if (operation == "install")
             {
-                installButton.Text = "Обновить";
+                installButton.Text = "Update";
                 removeButton.Enabled = true;
                 openButton.Enabled = true;
             }
             else
             {
-                installButton.Text = "Установить";
+                installButton.Text = "Install";
                 removeButton.Enabled = false;
                 openButton.Enabled = true;
             }
@@ -472,9 +472,9 @@ namespace Nikitid.IkeV2ProfileInstaller
         {
             InstallerLog.Write(operation + " failed", exception);
             string text = ExceptionText.Format(exception);
-            SetStatus("Операция не выполнена: " + text, AppPalette.Error);
-            MessageBox.Show(text + "\n\nПодробности записаны в:\n" + InstallerLog.Path,
-                "Не удалось изменить VPN-профиль", MessageBoxButtons.OK,
+            SetStatus("Operation failed: " + text, AppPalette.Error);
+            MessageBox.Show(text + "\n\nDetails saved to:\n" + InstallerLog.Path,
+                "Unable to change VPN profile", MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
 
@@ -626,72 +626,6 @@ namespace Nikitid.IkeV2ProfileInstaller
         internal static readonly Color DangerBorder = Color.FromArgb(91, 45, 58);
     }
 
-    internal sealed class BackdropPanel : Panel
-    {
-        internal BackdropPanel()
-        {
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                ControlStyles.OptimizedDoubleBuffer, true);
-        }
-
-        protected override void OnPaintBackground(PaintEventArgs args)
-        {
-            args.Graphics.Clear(AppPalette.Background);
-            args.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            DrawGlow(args.Graphics, new Rectangle(-150, -170, 520, 400),
-                Color.FromArgb(72, 89, 76, 226), 15);
-            DrawGlow(args.Graphics, new Rectangle(475, 300, 350, 270),
-                Color.FromArgb(42, 34, 143, 164), 12);
-        }
-
-        private static void DrawGlow(Graphics graphics, Rectangle area,
-            Color color, int layers)
-        {
-            for (int layer = layers; layer > 0; layer--)
-            {
-                float ratio = (float)layer / layers;
-                int insetX = (int)((1F - ratio) * area.Width * 0.30F);
-                int insetY = (int)((1F - ratio) * area.Height * 0.30F);
-                Rectangle ellipse = Rectangle.Inflate(area, -insetX, -insetY);
-                int alpha = Math.Max(2, color.A / layers);
-                using (SolidBrush brush = new SolidBrush(Color.FromArgb(alpha,
-                    color.R, color.G, color.B)))
-                    graphics.FillEllipse(brush, ellipse);
-            }
-        }
-    }
-
-    internal sealed class RoundedPanel : Panel
-    {
-        internal int CornerRadius { get; set; }
-        internal Color BorderColor { get; set; }
-
-        internal RoundedPanel()
-        {
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                ControlStyles.OptimizedDoubleBuffer, true);
-        }
-
-        protected override void OnResize(EventArgs args)
-        {
-            base.OnResize(args);
-            Region previous = Region;
-            Region = DrawingTools.RoundedRegion(ClientRectangle, CornerRadius);
-            if (previous != null)
-                previous.Dispose();
-        }
-
-        protected override void OnPaint(PaintEventArgs args)
-        {
-            base.OnPaint(args);
-            args.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            Rectangle bounds = new Rectangle(0, 0, Width - 1, Height - 1);
-            using (GraphicsPath path = DrawingTools.RoundRect(bounds, CornerRadius))
-            using (Pen pen = new Pen(BorderColor))
-                args.Graphics.DrawPath(pen, path);
-        }
-    }
-
     internal sealed class InputPanel : Panel
     {
         internal int CornerRadius { get; set; }
@@ -828,7 +762,7 @@ namespace Nikitid.IkeV2ProfileInstaller
         internal static void Write(string path, bool success, string message)
         {
             if (!IsValid(path))
-                throw new InvalidOperationException("Служебный файл результата недоступен.");
+                throw new InvalidOperationException("The operation result file is unavailable.");
             File.WriteAllText(path, (success ? "OK\n" : "ERROR\n") +
                 (message ?? ""), new UTF8Encoding(false));
         }
@@ -842,8 +776,8 @@ namespace Nikitid.IkeV2ProfileInstaller
             string message = split < 0 ? "" : text.Substring(split + 1).Trim();
             success = state == "OK";
             if (message.Length == 0)
-                message = success ? "Операция выполнена." :
-                    "Служебная операция завершилась без подробного ответа.";
+                message = success ? "Operation completed." :
+                    "The operation ended without a detailed response.";
             return message;
         }
 
@@ -862,21 +796,21 @@ namespace Nikitid.IkeV2ProfileInstaller
             try
             {
                 if (profile == null)
-                    throw new InvalidOperationException("XML-профиль не выбран.");
+                    throw new InvalidOperationException("No XML profile selected.");
                 InstallerLog.Write(operation + " worker started for " + profile.Name);
                 string message;
                 if (operation == "install")
                 {
                     VpnProfileStore.Install(profile);
-                    message = "Профиль установлен и проверен. Откройте VPN и подключитесь.";
+                    message = "Profile installed and verified. Open VPN to connect.";
                 }
                 else if (operation == "remove")
                 {
                     VpnProfileStore.Remove(profile.Name);
-                    message = "Профиль удалён.";
+                    message = "Profile removed.";
                 }
                 else
-                    throw new ArgumentException("Неизвестная служебная операция.");
+                    throw new ArgumentException("Unknown operation.");
                 InstallerLog.Write(operation + " worker completed for " + profile.Name);
                 WorkerResult.Write(resultPath, true, message);
             }
@@ -915,13 +849,13 @@ namespace Nikitid.IkeV2ProfileInstaller
                 else if (argument == "--name")
                 {
                     if (++index >= args.Length)
-                        throw new ArgumentException("После --name отсутствует имя подключения.");
+                        throw new ArgumentException("Missing connection name after --name.");
                     friendlyName = args[index];
                 }
                 else if (argument == "--result")
                 {
                     if (++index >= args.Length)
-                        throw new ArgumentException("После --result отсутствует путь.");
+                        throw new ArgumentException("Missing path after --result.");
                     resultPath = args[index];
                 }
                 else
@@ -929,12 +863,12 @@ namespace Nikitid.IkeV2ProfileInstaller
             }
             string profilePath = ProfileDocument.Find(paths.ToArray(), directory);
             if (!String.IsNullOrEmpty(operation) && String.IsNullOrEmpty(profilePath))
-                throw new ArgumentException("Для автоматической операции нужен XML-профиль.");
+                throw new ArgumentException("Automatic operations require an XML profile.");
             if (!String.IsNullOrEmpty(friendlyName) && String.IsNullOrEmpty(profilePath))
-                throw new ArgumentException("Для изменения имени нужен XML-профиль.");
+                throw new ArgumentException("Renaming requires an XML profile.");
             if (worker && (String.IsNullOrEmpty(operation) ||
                     !WorkerResult.IsValid(resultPath)))
-                throw new ArgumentException("Некорректный запуск служебной операции.");
+                throw new ArgumentException("Invalid operation invocation.");
             return new AppInvocation {
                 ProfilePath = profilePath,
                 Operation = operation,
@@ -964,7 +898,7 @@ namespace Nikitid.IkeV2ProfileInstaller
             document.LoadXml(Xml);
             XmlNode nameNode = document.SelectSingleNode("/VPNProfile/ProfileName");
             if (nameNode == null)
-                throw new InvalidDataException("В профиле отсутствует имя профиля.");
+                throw new InvalidDataException("The profile name is missing.");
             nameNode.InnerText = value;
             Name = value;
             Xml = document.OuterXml;
@@ -976,7 +910,7 @@ namespace Nikitid.IkeV2ProfileInstaller
             {
                 if (File.Exists(args[0]))
                     return System.IO.Path.GetFullPath(args[0]);
-                throw new FileNotFoundException("Указанный XML-профиль не найден.", args[0]);
+                throw new FileNotFoundException("The specified XML profile was not found.", args[0]);
             }
 
             string[] files = Directory.GetFiles(directory, "*.vpnv2.xml");
@@ -991,22 +925,22 @@ namespace Nikitid.IkeV2ProfileInstaller
             document.XmlResolver = null;
             document.Load(path);
             if (document.DocumentElement == null || document.DocumentElement.Name != "VPNProfile")
-                throw new InvalidDataException("Файл не является VPNv2-профилем Windows.");
+                throw new InvalidDataException("The file is not a Windows VPNv2 profile.");
 
-            string name = Required(document, "/VPNProfile/ProfileName", "имя профиля");
-            string server = Required(document, "/VPNProfile/NativeProfile/Servers", "VPN-сервер");
+            string name = Required(document, "/VPNProfile/ProfileName", "profile name");
+            string server = Required(document, "/VPNProfile/NativeProfile/Servers", "VPN server");
             string dns = Required(document,
                 "/VPNProfile/DomainNameInformation/DnsServers", "DNS VPN");
             string domain = Required(document,
-                "/VPNProfile/DomainNameInformation/DomainName", "DNS-пространство");
+                "/VPNProfile/DomainNameInformation/DomainName", "DNS namespace");
             if (domain != ".")
-                throw new InvalidDataException("DNS-пространство профиля должно быть точкой (.).");
+                throw new InvalidDataException("The profile DNS namespace must be a dot (.).");
             ValidateName(name);
             ValidateServer(server);
             ValidateDns(dns);
 
             string routing = Required(document,
-                "/VPNProfile/NativeProfile/RoutingPolicyType", "режим маршрутизации");
+                "/VPNProfile/NativeProfile/RoutingPolicyType", "routing mode");
             return new ProfileDocument {
                 Path = System.IO.Path.GetFullPath(path),
                 Name = name,
@@ -1022,7 +956,7 @@ namespace Nikitid.IkeV2ProfileInstaller
             XmlNode node = document.SelectSingleNode(xpath);
             string value = node == null ? "" : node.InnerText.Trim();
             if (value.Length == 0)
-                throw new InvalidDataException("В профиле отсутствует " + label + ".");
+                throw new InvalidDataException("The profile is missing " + label + ".");
             return value;
         }
 
@@ -1031,13 +965,13 @@ namespace Nikitid.IkeV2ProfileInstaller
             if (String.IsNullOrWhiteSpace(value) || value.Length > 128 ||
                 value.Any(Char.IsControl) ||
                 value.IndexOfAny(new[] {'\\', '/', ':', '*', '?', '"', '<', '>', '|', ';'}) >= 0)
-                throw new InvalidDataException("Имя VPN-профиля содержит недопустимые символы.");
+                throw new InvalidDataException("The VPN profile name contains invalid characters.");
         }
 
         private static void ValidateServer(string value)
         {
             if (value.Length > 253 || value.IndexOfAny(new[] {'/', '\\', '@'}) >= 0)
-                throw new InvalidDataException("Некорректное имя VPN-сервера.");
+                throw new InvalidDataException("Invalid VPN server name.");
         }
 
         private static void ValidateDns(string value)
@@ -1050,7 +984,7 @@ namespace Nikitid.IkeV2ProfileInstaller
             {
                 IPAddress address;
                 if (!IPAddress.TryParse(item.Trim(), out address))
-                    throw new InvalidDataException("Некорректный адрес DNS в VPN-профиле.");
+                    throw new InvalidDataException("Invalid DNS address in VPN profile.");
             }
         }
     }
@@ -1084,7 +1018,7 @@ namespace Nikitid.IkeV2ProfileInstaller
                     {
                         if (verified.Count != 1)
                             throw new InvalidOperationException(
-                                "Windows не вернула установленный профиль при проверке.");
+                                "Windows did not return the installed profile during verification.");
                     }
                     finally { Dispose(verified); }
                 }

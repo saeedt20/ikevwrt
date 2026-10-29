@@ -28,11 +28,3 @@ published by Let's Encrypt:
 
 They are included as certificate data used to verify ACME downloads and are
 not authored by this project.
-
-Vazirmatn font
-==============
-
-The packaged Persian UI font, `Vazirmatn-Regular.woff2`, is from the
-Vazirmatn project by rastikerdar and is licensed under the SIL Open Font
-License 1.1. Its complete license text is installed with the font as
-`/www/luci-static/resources/ikev2-manager/fonts/OFL.txt`.

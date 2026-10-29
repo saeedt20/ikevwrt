@@ -10,43 +10,43 @@
 		}
 	},
 	"admin/services/ikev2-manager/setup": {
-		"title": "نمای کلی",
+		"title": "Overview",
 		"order": 5,
 		"action": {
 			"type": "view",
-			"path": "ikev2-manager/setup-v12"
+			"path": "ikev2-manager/setup-v13"
 		}
 	},
 	"admin/services/ikev2-manager/users": {
-		"title": "کاربران VPN",
+		"title": "VPN Users",
 		"order": 50,
 		"action": {
 			"type": "view",
-			"path": "ikev2-manager/users-v16"
+			"path": "ikev2-manager/users-v17"
 		}
 	},
 	"admin/services/ikev2-manager/server": {
-		"title": "سرور ورودی",
+		"title": "Inbound Server",
 		"order": 40,
 		"action": {
 			"type": "view",
-			"path": "ikev2-manager/settings-v12"
+			"path": "ikev2-manager/settings-v13"
 		}
 	},
 	"admin/services/ikev2-manager/client": {
-		"title": "تونل خروجی",
+		"title": "Outbound Tunnel",
 		"order": 20,
 		"action": {
 			"type": "view",
-			"path": "ikev2-manager/client-v12"
+			"path": "ikev2-manager/client-v13"
 		}
 	},
 	"admin/services/ikev2-manager/routing": {
-		"title": "مدیریت مسیریابی",
+		"title": "Policy Routing",
 		"order": 30,
 		"action": {
 			"type": "view",
-			"path": "ikev2-domains/editor-v13"
+			"path": "ikev2-domains/editor-v14"
 		}
 	}
 }

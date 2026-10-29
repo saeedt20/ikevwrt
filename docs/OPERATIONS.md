@@ -29,7 +29,7 @@ architecture from the GitHub Release, verify its published SHA-256 checksum,
 then install it explicitly:
 
 ```sh
-apk add --allow-untrusted /tmp/luci-app-ikev2-manager_*.apk
+apk add --allow-untrusted /tmp/luci-app-ikev2-manager-*.apk
 ```
 
 The project deliberately does not publish an APK signing key or an APK feed.

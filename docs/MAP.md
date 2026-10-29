@@ -49,15 +49,15 @@ carries a version suffix - see `luci-ikev2-manager/AGENTS.md` for why.
 
 | page | source | installed as |
 | --- | --- | --- |
-| Overview | `luci-ikev2-manager/setup.js` | `view/ikev2-manager/setup-v12.js` |
-| Outbound Tunnel | `luci-ikev2-manager/client.js` | `view/ikev2-manager/client-v12.js` |
-| Policy Routing | `luci-ikev2-domains/editor.js` | `view/ikev2-domains/editor-v13.js` |
-| Inbound Server | `luci-ikev2-manager/settings.js` | `view/ikev2-manager/settings-v12.js` |
-| VPN Users | `luci-ikev2-manager/users.js` | `view/ikev2-manager/users-v16.js` |
+| Overview | `luci-ikev2-manager/setup.js` | `view/ikev2-manager/setup-v13.js` |
+| Outbound Tunnel | `luci-ikev2-manager/client.js` | `view/ikev2-manager/client-v13.js` |
+| Policy Routing | `luci-ikev2-domains/editor.js` | `view/ikev2-domains/editor-v14.js` |
+| Inbound Server | `luci-ikev2-manager/settings.js` | `view/ikev2-manager/settings-v13.js` |
+| VPN Users | `luci-ikev2-manager/users.js` | `view/ikev2-manager/users-v17.js` |
 | Status widget | `luci-ikev2-manager/status-widget.js` | `view/status/include/06_ikev2-manager.js` |
 
-`luci-ikev2-manager/shared.js` is the design system, the Russian dictionary and
-the action lifecycle used by all of them; it installs as `shared-v20.js`.
+`luci-ikev2-manager/shared.js` is the English design system and
+the action lifecycle used by all of them; it installs as `shared-v21.js`.
 `luci-ikev2-manager/menu.json` wires the pages, `acl.json` grants every helper
 call and input-file write.
 
@@ -102,5 +102,7 @@ before it is trusted.
 | `docs/TRAPS.md` | failures that cost hours and will repeat |
 | `docs/ARCHITECTURE.md` | traffic paths, fail-closed boundary, DNS, ownership |
 | `docs/OPERATIONS.md` | installing, diagnosing and recovering on a router |
-| `docs/OPENWRT25.md` | apk, the signed feed, release validation |
+| `docs/OPENWRT25.md` | APK builds, compatibility, release validation |
+| `docs/USAGE.md` | full setup, options and removal guide |
+| `docs/PRIVACY.md` | publication checks and diagnostic redaction |
 | `docs/private/` | site-specific runbooks, untracked on purpose |

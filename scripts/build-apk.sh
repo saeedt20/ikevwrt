@@ -13,7 +13,7 @@ root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 . "$root/release.env"
 . "$root/apk-feed.env"
 
-# A normal release uses the checked-in Google WiFi profile. The target builder
+# A normal release uses the checked-in Redmi AX6S profile. The target builder
 # deliberately overrides these values after sourcing that profile so a second
 # target never needs a source fork or a hand-edited Makefile.
 OPENWRT_APK_VERSION="${OPENWRT_APK_VERSION_OVERRIDE:-$OPENWRT_APK_VERSION}"

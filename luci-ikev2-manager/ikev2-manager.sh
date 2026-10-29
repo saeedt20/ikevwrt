@@ -31,13 +31,13 @@ acme_cert_section='ikev2'
 acme_log_file='/tmp/ikev2-acme.log'
 acme_dnsapi_dir="${IKEV2_ACME_DNSAPI:-/usr/lib/acme/client/dnsapi}"
 acme_input_file="${IKEV2_ACME_INPUT:-}"
-action_status_file="${IKEV2_ACTION_STATUS:-/var/run/ikev2-manager-action.status}"
-action_status_dir="${IKEV2_ACTION_STATUS_DIR:-/var/run/ikev2-manager-actions}"
-action_lock_dir="${IKEV2_ACTION_LOCK:-/var/run/ikev2-action.lock}"
-action_lock_status="${IKEV2_ACTION_LOCK_STATUS:-/var/run/ikev2-action.lock.status}"
+action_status_file="${IKEV2_ACTION_STATUS:-$root/var/run/ikev2-manager-action.status}"
+action_status_dir="${IKEV2_ACTION_STATUS_DIR:-$root/var/run/ikev2-manager-actions}"
+action_lock_dir="${IKEV2_ACTION_LOCK:-$root/var/run/ikev2-action.lock}"
+action_lock_status="${IKEV2_ACTION_LOCK_STATUS:-$root/var/run/ikev2-action.lock.status}"
 auto_connect_lock="${IKEV2_AUTO_CONNECT_LOCK:-/var/run/ikev2-auto-connect.lock}"
 auto_connect_attempt="${IKEV2_AUTO_CONNECT_ATTEMPT:-/var/run/ikev2-auto-connect.attempt}"
-config_lock_dir="${IKEV2_CONFIG_LOCK:-/var/run/ikev2-manager-config.lock}"
+config_lock_dir="${IKEV2_CONFIG_LOCK:-$root/var/run/ikev2-manager-config.lock}"
 tunnel_dns_state="${IKEV2_TUNNEL_DNS_STATE:-$root/var/run/ikev2-tunnel-dns.state}"
 runtime_lib_dir="${IKEV2_RUNTIME_LIB_DIR:-$root/usr/libexec/ikev2-manager.d}"
 
@@ -80,8 +80,9 @@ swanctl_quiet() {
 	if swanctl "$@" 2>"$err"; then
 		rm -f "$err"
 		return 0
+	else
+		code=$?
 	fi
-	code=$?
 	filtered="$(filter_swanctl_noise <"$err" | tail -n 8 | tr '\n' ' ')"
 	rm -f "$err"
 	[ -n "$filtered" ] && printf '%s\n' "$filtered" >&2
@@ -264,7 +265,9 @@ consume_client_input() {
 	if ! snapshot_path "$uci_config_dir/$uci_config" "$client_state" uci ||
 	   ! snapshot_path "$client_secret_db" "$client_state" secret ||
 	   ! snapshot_path "$outbound_conf" "$client_state" profile ||
-	   ! snapshot_path "$outbound_secret" "$client_state" rendered_secret; then
+	   ! snapshot_path "$outbound_secret" "$client_state" rendered_secret ||
+	   ! snapshot_path "$root/etc/swanctl/x509/ikev2-client.pem" "$client_state" certificate ||
+	   ! snapshot_path "$root/etc/swanctl/private/ikev2-client.key" "$client_state" private_key; then
 		rm -rf "$client_state"
 		pid_lock_release "$config_lock_dir"
 		die 'Unable to back up current client configuration'
@@ -651,6 +654,8 @@ restore_client_state() {
 	restore_path "$client_secret_db" "$directory" secret || restored=0
 	restore_path "$outbound_conf" "$directory" profile || restored=0
 	restore_path "$outbound_secret" "$directory" rendered_secret || restored=0
+	restore_path "$root/etc/swanctl/x509/ikev2-client.pem" "$directory" certificate || restored=0
+	restore_path "$root/etc/swanctl/private/ikev2-client.key" "$directory" private_key || restored=0
 	[ "$restored" -eq 1 ]
 }
 
@@ -820,6 +825,7 @@ init_uci() {
 		uci set "$uci_config.domains.cache_capacity=8192"
 	uci -q get "$uci_config.server.lan_zone" >/dev/null 2>&1 ||
 		set_list server lan_zone lan
+	uci set "$uci_config.globals.schema_version=2"
 	uci commit "$uci_config"
 }
 
@@ -834,7 +840,7 @@ init_client_secret() {
 }
 
 init_users() {
-	[ -s "$users_db" ] && return 0
+	[ -f "$users_db" ] && return 0
 
 	mkdir -p "${users_db%/*}"
 	chmod 700 "${users_db%/*}"
@@ -2691,9 +2697,39 @@ export_user_profile() {
 	esac
 }
 
-init_uci
-init_users
-init_client_secret
+manager_initialized() {
+	[ "$(getv globals schema_version)" = 2 ] && [ -f "$users_db" ] &&
+		[ -d "$root/etc/swanctl/conf.d" ]
+}
+
+initialize_manager() {
+	manager_initialized && return 0
+	mkdir -p "${config_lock_dir%/*}"
+	local tries=0
+	while ! pid_lock_acquire "$config_lock_dir"; do
+		tries=$((tries + 1))
+		[ "$tries" -lt 5 ] || die 'Another configuration change is already in progress'
+		sleep 1
+	done
+	trap 'pid_lock_release "$config_lock_dir"' EXIT
+	if ! manager_initialized; then
+		init_uci
+		init_users
+		init_client_secret
+	fi
+	pid_lock_release "$config_lock_dir"
+	trap - EXIT
+}
+
+initialize_manager
+case "${1:-}" in
+	user-secret-set | user-delete)
+		acquire_action_lock users "$$" || die 'Another router action is already in progress'
+		trap 'release_action_lock' EXIT
+		pid_lock_acquire "$config_lock_dir" || die 'Another configuration change is already in progress'
+		trap 'pid_lock_release "$config_lock_dir"; release_action_lock' EXIT
+		;;
+esac
 
 connect_failure_file="${IKEV2_CONNECT_FAILURE_FILE:-/var/run/ikev2-connect-failure}"
 inbound_diagnostic_file="${IKEV2_INBOUND_DIAGNOSTIC_FILE:-/tmp/ikev2-inbound-diagnostic.log}"
@@ -3146,12 +3182,12 @@ case "${1:-}" in
 		;;
 	user-secret-set)
 		[ -n "$user_input_file" ] || user_input_file="$(input_file_for user "${2:-}")"
-		consume_user_input
+		( consume_user_input )
 		;;
 	user-delete)
 		user="${2:-}"
 		valid_user "$user" || die 'Invalid username'
-		delete_user_account "$user"
+		( delete_user_account "$user" )
 		;;
 	disconnect)
 		id="${2:-}"

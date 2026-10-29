@@ -127,13 +127,16 @@ function setBusy(button, busy) {
 }
 
 let users = [];
+let sessionSnapshot = [];
+let runtimeCalls = 0;
 let userInput = '';
 let modal = null;
 const fileApi = {
 	stat: () => Promise.resolve({}),
 	write: (path, payload) => { userInput = payload; return Promise.resolve(); },
 	exec: (path, args) => {
-		if (path === '/usr/sbin/swanmon') return Promise.resolve({ stdout: '[]' });
+		runtimeCalls++;
+		if (path === '/usr/sbin/swanmon') return Promise.resolve({ stdout: JSON.stringify(sessionSnapshot) });
 		if (args[0] === 'users-show') return Promise.resolve({
 			stdout: users.map(user => [
 				user.name, user.routerAccess, user.internetAccess,
@@ -217,7 +220,8 @@ const ui = {
 	showModal: (title, nodes) => { modal = E('div', {}, nodes); },
 	hideModal: () => { modal = null; }
 };
-const poll = { add: () => {} };
+let refreshPoll;
+const poll = { add: callback => { refreshPoll = callback; } };
 const L = { resolveDefault: (promise, fallback) => Promise.resolve(promise).catch(() => fallback) };
 const windowMock = { confirm: () => true, setTimeout, Event: function() {} };
 const documentMock = {};
@@ -253,6 +257,28 @@ const page = factory(view, fileApi, ui, poll, common, L, E, translate, windowMoc
 	assert(root.textContent.includes('test-user'), 'new user appears without a page reload');
 	assert(root.textContent.includes('1 users'), 'user count updates without a page reload');
 	assert(root.textContent.includes('VPN user added.'), 'success is shown in the local action bar');
+	const stableCard = findByTitle(root, 'Access policy');
+	await refreshPoll();
+	assert.strictEqual(findByTitle(root, 'Access policy'), stableCard,
+		'an unchanged refresh must preserve the existing user card');
+	documentMock.hidden = true;
+	const beforeHidden = runtimeCalls;
+	await refreshPoll();
+	assert.strictEqual(runtimeCalls, beforeHidden, 'hidden pages must not poll the router');
+	documentMock.hidden = false;
+	sessionSnapshot = [ { 'ikev2-in': {
+		'remote-eap-id': 'test-user', uniqueid: 1, established: 10,
+		'child-sas': { net: { 'bytes-out': 100, 'bytes-in': 20 } }
+	} } ];
+	await refreshPoll();
+	const connectedCard = findByTitle(root, 'Access policy');
+	sessionSnapshot[0]['ikev2-in']['child-sas'].net['bytes-out'] = 200;
+	await refreshPoll();
+	assert.strictEqual(findByTitle(root, 'Access policy'), connectedCard,
+		'traffic updates must preserve card controls and focus');
+	assert(root.textContent.includes(common.formatBytes(200)), 'traffic counters must still update');
+	sessionSnapshot = [];
+	await refreshPoll();
 
 	assert(findByTitle(root, 'Download iOS profile'),
 		'user card has a direct iOS profile action');

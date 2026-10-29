@@ -41,7 +41,7 @@ those whole is cheap enough.
 601  stats_runtime
 623  dns_malformed_stats
 
-## ikev2-manager-runtime/ikev2-domain-router.sh - 1695 lines
+## ikev2-manager-runtime/ikev2-domain-router.sh - 1705 lines
 
 36  die
 41  getv
@@ -96,27 +96,27 @@ those whole is cheap enough.
 1063  selected_test_domain
 1068  wait_for_dns
 1080  validate_dns_server
-1095  runtime_healthy
-1109  wait_for_query
-1121  repair_runtime
-1146  ensure_runtime
-1154  bounded_nslookup
-1239  probe_tunnel_dns
-1256  probe_tunnel_data_plane
-1268  rendered_tunnel_dns
-1279  tunnel_dns_check
-1362  prepare
-1368  refresh
-1401  refresh_rules
-1462  adopt_upstream
-1485  activate
-1538  deactivate
-1555  pause_routing  - Pause differs from deactivate: deactivate switches the engine to nftset and
-1566  resume_routing
-1598  fallback
-1609  run_async
-1622  schedule
-1638  status
+1099  runtime_healthy
+1113  wait_for_query
+1125  repair_runtime
+1150  ensure_runtime
+1158  bounded_nslookup
+1243  probe_tunnel_dns
+1260  probe_tunnel_data_plane
+1272  rendered_tunnel_dns
+1283  tunnel_dns_check
+1366  prepare
+1372  refresh
+1405  refresh_rules
+1466  adopt_upstream
+1489  activate
+1542  deactivate
+1559  pause_routing  - Pause differs from deactivate: deactivate switches the engine to nftset and
+1570  resume_routing
+1608  fallback
+1619  run_async
+1632  schedule
+1648  status
 
 ## ikev2-manager-runtime/ikev2-health.sh - 300 lines
 
@@ -136,29 +136,29 @@ those whole is cheap enough.
 145  ensure_device_routing_policy
 161  health_cleanup
 
-## ikev2-manager-runtime/ikev2-iran-direct.sh - 345 lines
+## ikev2-manager-runtime/ikev2-iran-direct.sh - 360 lines
 
-27  enabled
-28  count
-29  status
-36  fetch
-47  validate_cidrs  - Shared by the downloaded list and the editable one, so an operator entry can
-73  prepare
-102  merge_extra  - The editable list holds both kinds of entry, one per line. It is validated
-148  sync_pbr
-164  apply
-170  update
-206  disable
-214  state_value
-215  numeric
-216  state_set
-228  refresh_due  - Whether the scheduled refresh should run now. Never while the feature is off,
-248  scheduled_update
-257  write_action_status
-262  schedule
-273  run_async
-291  write_extra  - The page stages its text under a fixed prefix and passes the token, so the ACL
-318  check_lists
+31  enabled
+32  count
+33  status
+40  fetch
+51  validate_cidrs  - Shared by the downloaded list and the editable one, so an operator entry can
+77  prepare
+106  merge_extra  - The editable list holds both kinds of entry, one per line. It is validated
+152  sync_pbr
+168  apply
+175  update
+211  disable
+224  state_value
+225  numeric
+226  state_set
+238  refresh_due  - Whether the scheduled refresh should run now. Never while the feature is off,
+258  scheduled_update
+267  write_action_status
+272  schedule
+283  run_async
+306  write_extra  - The page stages its text under a fixed prefix and passes the token, so the ACL
+333  check_lists
 
 ## ikev2-manager-runtime/ikev2-manager-system.sh - 4011 lines
 
@@ -466,7 +466,7 @@ those whole is cheap enough.
 383  cmd_networks  - List logical OpenWrt networks that have an IPv4 subnet, as name=CIDR lines.
 404  cmd_zones  - List firewall zones as name=network1 network2 lines. Keeping this beside the
 
-## luci-ikev2-manager/client.js - 1340 lines
+## luci-ikev2-manager/client.js - 1344 lines
 
 112  input
 121  splitDnsList
@@ -494,146 +494,148 @@ those whole is cheap enough.
 509  liveCard
 528  updateConnectionView
 559  refreshClientState
-590  materialPicker
-646  updateAuthFields
-753  writeClientInput
-786  runClientInputJob
-916  segmentBlock  - One block per segment. Everything a block needs - fields,
-961  segmentProtocol  - The stored protocol summarises the group rather than constraining
-976  runSegment
-1065  renderSegments
-1081  refreshSegments
-1092  syncDnsVisibility
-1101  updateDnsState
+594  materialPicker
+650  updateAuthFields
+757  writeClientInput
+790  runClientInputJob
+920  segmentBlock  - One block per segment. Everything a block needs - fields,
+965  segmentProtocol  - The stored protocol summarises the group rather than constraining
+980  runSegment
+1069  renderSegments
+1085  refreshSegments
+1096  syncDnsVisibility
+1105  updateDnsState
 
-## luci-ikev2-manager/ikev2-manager.sh - 3328 lines
+## luci-ikev2-manager/ikev2-manager.sh - 3364 lines
 
 12  uci
 51  die
 56  input_file_for
 73  filter_swanctl_noise
 78  swanctl_quiet
-91  consume_user_input
-177  consume_client_input
-299  valid_user
-304  valid_password
-309  valid_ipv4
-320  valid_ipv6
-355  valid_dns_name
-372  valid_host
-376  valid_tunnel_doh
-391  valid_tunnel_dns_list
-401  valid_bootstrap_endpoint
-408  valid_bootstrap_list
-418  valid_ipv4_pool
-424  valid_ipv4_cidr
-431  ipv4_to_uint
-435  canonical_ipv4_cidr
-452  valid_server_pool_layout
-473  pool_overlaps_connected_network
-479  ipnum
-497  normalize_list
-501  valid_ipv4_cidr_list
-512  normalize_user_targets
-532  validate_user_policy
-552  valid_name
-557  valid_name_list
-568  valid_port_list
-583  valid_path_or_empty
-590  normalize_host_list
-595  valid_host_list
-606  valid_uint
-610  in_range
-614  atomic_install
-620  snapshot_path
-630  restore_path
-646  restore_client_state
-657  commit_client_settings
-689  getv_default
-694  get_list
-698  interface_counter
-707  set_list
-717  init_uci
-826  init_client_secret
-836  init_users
-869  render_users
-894  reload_credentials
-901  user_exists
-906  user_policy_section
-911  user_policy_value
-923  save_user_policy
-943  apply_user_policy_runtime
-951  restore_user_policy_backup
-957  add_user_with_policy_transaction
-1003  update_user_policy_transaction
-1027  delete_user_policy
-1037  delete_user_account
-1044  restore_user_files
-1055  update_user
-1084  delete_user
-1109  getv
-1118  render_server
-1194  validate_server_certificate_files
-1221  restore_server_certificate_backup
-1234  certificate_is_self_signed
-1244  certificate_is_issued_by
-1249  sync_server_certificate
-1349  validate_server_settings
-1384  validate_server_access_settings
-1403  snapshot_server_state
-1416  restore_server_state
-1441  commit_server_settings
-1469  consume_server_input
-1569  acme_server_cert_path  - ACME issuance for the inbound server certificate. The app owns the
-1575  acme_emit
-1627  acme_primary_var  - Primary env var for single-credential DNS providers, so a user can paste just
-1645  normalize_acme_credentials
-1686  restore_acme_state
-1692  commit_acme_settings
-1728  acme_set
-1811  acme_issue_action
-1838  acme_issue
-1856  sync_client_ca  - strongSwan validates the remote VPS certificate only against CAs in
-1868  import_client_material
-1907  install_client_certificate
-1933  render_client
-2067  set_client_secret
-2076  render_client_secret
-2097  sync_client_secret_identity
-2106  load_profile
-2128  profile_values
-2146  advanced_read
-2156  advanced_set
-2234  advanced_reset
-2263  apply_all
-2277  upgrade_server_profile
-2308  package_installed
-2319  widget_status_live
-2401  widget_status
-2434  overview
-2505  show_users
-2512  unquote
-2558  xml_escape
-2578  profile_uuid
-2587  profile_secret
-2592  profile_password
-2605  export_apple_profile
-2652  export_windows_profile
-2666  export_android_profile
-2681  export_user_profile
-2704  classify_initiate_failure  - charon reports the real reason for a failed handshake to syslog, not through
-2731  run_inbound_diagnostic
-2766  inbound_diagnostic_report
-2803  initiate_outbound  - Run swanctl --initiate but swallow strongSwan's noisy plugin-load warnings,
-2831  connect_action
-2852  has_outbound_sa
-2862  has_loopback_connecting_outbound  - A start_action fired before WAN is ready can leave an IKE_SA permanently
-2867  outbound_peer_resolves
-2882  ensure_client_action  - Bring up an enabled outbound client without tearing down an already healthy
-2940  disable_client_action
-2961  apply_action
-2968  server_apply_action
-2991  run_action
+92  consume_user_input
+178  consume_client_input
+302  valid_user
+307  valid_password
+312  valid_ipv4
+323  valid_ipv6
+358  valid_dns_name
+375  valid_host
+379  valid_tunnel_doh
+394  valid_tunnel_dns_list
+404  valid_bootstrap_endpoint
+411  valid_bootstrap_list
+421  valid_ipv4_pool
+427  valid_ipv4_cidr
+434  ipv4_to_uint
+438  canonical_ipv4_cidr
+455  valid_server_pool_layout
+476  pool_overlaps_connected_network
+482  ipnum
+500  normalize_list
+504  valid_ipv4_cidr_list
+515  normalize_user_targets
+535  validate_user_policy
+555  valid_name
+560  valid_name_list
+571  valid_port_list
+586  valid_path_or_empty
+593  normalize_host_list
+598  valid_host_list
+609  valid_uint
+613  in_range
+617  atomic_install
+623  snapshot_path
+633  restore_path
+649  restore_client_state
+662  commit_client_settings
+694  getv_default
+699  get_list
+703  interface_counter
+712  set_list
+722  init_uci
+832  init_client_secret
+842  init_users
+875  render_users
+900  reload_credentials
+907  user_exists
+912  user_policy_section
+917  user_policy_value
+929  save_user_policy
+949  apply_user_policy_runtime
+957  restore_user_policy_backup
+963  add_user_with_policy_transaction
+1009  update_user_policy_transaction
+1033  delete_user_policy
+1043  delete_user_account
+1050  restore_user_files
+1061  update_user
+1090  delete_user
+1115  getv
+1124  render_server
+1200  validate_server_certificate_files
+1227  restore_server_certificate_backup
+1240  certificate_is_self_signed
+1250  certificate_is_issued_by
+1255  sync_server_certificate
+1355  validate_server_settings
+1390  validate_server_access_settings
+1409  snapshot_server_state
+1422  restore_server_state
+1447  commit_server_settings
+1475  consume_server_input
+1575  acme_server_cert_path  - ACME issuance for the inbound server certificate. The app owns the
+1581  acme_emit
+1633  acme_primary_var  - Primary env var for single-credential DNS providers, so a user can paste just
+1651  normalize_acme_credentials
+1692  restore_acme_state
+1698  commit_acme_settings
+1734  acme_set
+1817  acme_issue_action
+1844  acme_issue
+1862  sync_client_ca  - strongSwan validates the remote VPS certificate only against CAs in
+1874  import_client_material
+1913  install_client_certificate
+1939  render_client
+2073  set_client_secret
+2082  render_client_secret
+2103  sync_client_secret_identity
+2112  load_profile
+2134  profile_values
+2152  advanced_read
+2162  advanced_set
+2240  advanced_reset
+2269  apply_all
+2283  upgrade_server_profile
+2314  package_installed
+2325  widget_status_live
+2407  widget_status
+2440  overview
+2511  show_users
+2518  unquote
+2564  xml_escape
+2584  profile_uuid
+2593  profile_secret
+2598  profile_password
+2611  export_apple_profile
+2658  export_windows_profile
+2672  export_android_profile
+2687  export_user_profile
+2700  manager_initialized
+2705  initialize_manager
+2740  classify_initiate_failure  - charon reports the real reason for a failed handshake to syslog, not through
+2767  run_inbound_diagnostic
+2802  inbound_diagnostic_report
+2839  initiate_outbound  - Run swanctl --initiate but swallow strongSwan's noisy plugin-load warnings,
+2867  connect_action
+2888  has_outbound_sa
+2898  has_loopback_connecting_outbound  - A start_action fired before WAN is ready can leave an IKE_SA permanently
+2903  outbound_peer_resolves
+2918  ensure_client_action  - Bring up an enabled outbound client without tearing down an already healthy
+2976  disable_client_action
+2997  apply_action
+3004  server_apply_action
+3027  run_action
 
 ## luci-ikev2-manager/settings.js - 769 lines
 
@@ -653,7 +655,7 @@ those whole is cheap enough.
 529  updateServerPills
 567  refreshServerState
 
-## luci-ikev2-manager/setup.js - 739 lines
+## luci-ikev2-manager/setup.js - 744 lines
 
 16  parseStatus
 25  dependenciesReady
@@ -670,59 +672,55 @@ those whole is cheap enough.
 169  checkRows
 244  rowPairs
 248  dependencyOverview
-352  policyCheck
-378  refreshList
-519  renderDependencyChecks
-524  updateSetupState
-557  refreshSetupState
+347  policyCheck
+373  refreshList
+514  renderDependencyChecks
+519  updateSetupState
+552  refreshSetupState
 
-## luci-ikev2-manager/shared.js - 4915 lines
+## luci-ikev2-manager/shared.js - 2424 lines
 
-2354  defaultLanguage
-2363  translate
-2392  parseKeyValues
-2402  parseSwanmon
-2412  formatBytes
-2423  formatDuration
-2438  formatDate
-2450  daysUntil
-4310  styles  - The Status Overview include re-renders on every poll. Returning a fresh
-4322  pill
-4326  setPill
-4333  icon
-4353  languageSwitch
-4373  localizeNav  - LuCI renders menu.json before the view runs. Its default titles are Persian
-4397  applyLanguageLayout
-4408  header
-4431  card
-4439  section
-4456  advancedPanel  - Advanced options belong to the section they modify. A square toggle in that
-4482  keyValueTable
-4491  fieldLabel
-4498  setBusy
-4537  errorMessage  - rpcd refuses a call the session's ACL does not cover. On its own its wording
-4546  execChecked
-4555  delay
-4561  pollAction  - Poll a key=value status command for one exact backend action id. A unique id
-4566  once
-4587  runAction  - Standard action lifecycle for every button:
-4615  runJob  - Start a detached backend action. The starter must return action_id=<id>
-4670  copyText
-4683  switchLabel
-4694  choiceWithCustom  - A finite set of safe presets with an explicit final Custom… branch. The
-4710  hasChoice
-4716  sync
-4722  setValue
-4746  multiChoiceWithCustom  - Multi-value counterpart used for detected firewall zones. Known values are
-4774  sync
-4779  setValue
-4808  toggleRow  - A labelled toggle row: title/description on the left, switch on the right.
-4823  netPick  - Selectable network card (modern replacement for a bare checkbox). Returns
-4833  setChecked
-4843  inlineResult  - Inline status chip shown next to an action button instead of a top-of-page
-4845  set
-4861  inputToken
-4866  gate
+7  translate
+13  parseKeyValues
+23  parseSwanmon
+33  formatBytes
+44  formatDuration
+58  formatDate
+69  daysUntil
+1881  styles  - The Status Overview include re-renders on every poll. Returning a fresh
+1893  pill
+1897  setPill
+1904  icon
+1924  header
+1942  card
+1950  section
+1967  advancedPanel  - Advanced options belong to the section they modify. A square toggle in that
+1993  keyValueTable
+2002  fieldLabel
+2009  setBusy
+2048  errorMessage  - rpcd refuses a call the session's ACL does not cover. On its own its wording
+2057  execChecked
+2066  delay
+2072  pollAction  - Poll a key=value status command for one exact backend action id. A unique id
+2077  once
+2098  runAction  - Standard action lifecycle for every button:
+2126  runJob  - Start a detached backend action. The starter must return action_id=<id>
+2181  copyText
+2194  switchLabel
+2205  choiceWithCustom  - A finite set of safe presets with an explicit final Custom… branch. The
+2221  hasChoice
+2227  sync
+2233  setValue
+2257  multiChoiceWithCustom  - Multi-value counterpart used for detected firewall zones. Known values are
+2285  sync
+2290  setValue
+2319  toggleRow  - A labelled toggle row: title/description on the left, switch on the right.
+2334  netPick  - Selectable network card (modern replacement for a bare checkbox). Returns
+2344  setChecked
+2354  inlineResult  - Inline status chip shown next to an action button instead of a top-of-page
+2356  set
+2372  inputToken
+2377  gate
 
 ## luci-ikev2-manager/status-widget.js - 359 lines
 
@@ -737,7 +735,7 @@ those whole is cheap enough.
 171  policyComponent
 237  inboundComponent
 
-## luci-ikev2-manager/users.js - 740 lines
+## luci-ikev2-manager/users.js - 773 lines
 
 16  sessionsByUser
 46  loadUsers
@@ -757,12 +755,9 @@ those whole is cheap enough.
 267  sync
 312  passwordDialog
 381  userDialog
-521  actionButton
-531  squareAction
-541  refresh
-547  renderList
-643  setData
-
-## scripts/stage-package.sh - 303 lines
-
-21  install_file
+523  actionButton
+533  squareAction
+543  refresh
+549  renderList
+560  updateSession
+661  setData

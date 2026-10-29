@@ -3,7 +3,7 @@
 'use strict';
 'require view';
 'require fs';
-'require ikev2-manager.shared-v20 as common';
+'require ikev2-manager.shared-v21 as common';
 
 // Shadow the global _() with the project translator for this module only;
 // see the note in shared.js about not replacing window._.
@@ -294,12 +294,7 @@ return view.extend({
 	load: function() {
 		return Promise.all([
 			L.resolveDefault(fs.exec(helper, [ 'get' ]), { stdout: '' }),
-			// A failed RPC is not evidence that packages are missing. Preserve an
-			// explicit unknown state so the page cannot offer a destructive repair
-			// for a transient diagnostic failure.
-			L.resolveDefault(fs.exec(helper, [ 'doctor-ui' ]), {
-				stdout: 'diagnostic_status=unavailable\ndependencies_ok=unknown\n'
-			}),
+			Promise.resolve({ pending: true, stdout: 'diagnostic_status=pending\ndependencies_ok=unknown\n' }),
 			L.resolveDefault(fs.exec(devicesHelper, [ 'networks' ]), { stdout: '' }),
 			L.resolveDefault(fs.exec(devicesHelper, [ 'dump' ]), { stdout: '' }),
 			L.resolveDefault(fs.exec(devicesHelper, [ 'clients' ]), { stdout: '' }),
@@ -647,6 +642,16 @@ return view.extend({
 		});
 
 		updateSetupState();
+		if (data[1].pending) {
+			depsResult.busy(_('Checking runtime dependencies...'));
+			L.resolveDefault(fs.exec(helper, [ 'doctor-ui' ]), {
+				stdout: 'diagnostic_status=unavailable\ndependencies_ok=unknown\n'
+			}).then(function(response) {
+				doctor = common.parseKeyValues(response.stdout || '');
+				depsResult.clear();
+				updateSetupState();
+			});
+		}
 
 		return E([
 			common.styles(),

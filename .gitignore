@@ -35,6 +35,7 @@ tmp/
 *.swo
 *~
 *.ipk
+*.apk
 *.bin
 *.img
 *.iso

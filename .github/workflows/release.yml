@@ -25,7 +25,10 @@ jobs:
       - name: Verify tag
         run: ./scripts/check-release-tag.sh "${GITHUB_REF_NAME}"
       - name: Validate and build
-        run: ./scripts/ci-check.sh
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends jq mono-devel
+          ./scripts/ci-check.sh
       - name: Install OpenWrt SDK build dependencies
         run: |
           sudo apt-get update
@@ -49,14 +52,10 @@ jobs:
           . ./apk-feed.env
           OPENWRT_SDK_DIR="$PWD/build/${OPENWRT_APK_SDK_ARCHIVE%.tar.zst}" \
             ./scripts/build-apk.sh
-      - name: Build unsigned ARMv8 Cortex-A53 OpenWrt 25.12 APK
-        run: sh ./scripts/build-apk-aarch64-cortex-a53.sh
       - name: Publish release assets
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '_rc') || contains(github.ref_name, '_beta') || contains(github.ref_name, '_alpha') }}
           files: |
-            dist/*.ipk
-            dist/SHA256SUMS
             dist/apk/*

@@ -23,7 +23,7 @@ find luci-ikev2-domains luci-ikev2-manager \
 ./scripts/check-luci-ui-contract.sh
 ./scripts/check-luci-exec-acl.sh
 ./scripts/test-luci-client-ui.sh
-./scripts/test-luci-translations.sh
+./scripts/test-luci-english.sh
 node ./scripts/test-luci-users-ui.js
 node ./scripts/test-luci-shared.js
 node ./scripts/test-luci-status-widget.js
@@ -35,6 +35,7 @@ node ./scripts/test-luci-status-widget.js
 
 ./scripts/test-runtime-modules.sh
 python3 ./scripts/test-audit-regressions.py
+python3 ./scripts/test-manager-serialization.py
 ./scripts/test-system-validation.sh
 ./scripts/test-upnp-compatibility.sh
 ./scripts/test-dependency-state.sh
@@ -56,7 +57,9 @@ python3 ./scripts/test-audit-regressions.py
 ./scripts/test-device-routing.sh
 ./scripts/test-user-credentials.sh
 ./scripts/test-client-profile-export.sh
+./scripts/test-client-material-upload.sh
 ./scripts/test-windows-profile-installer.sh
+./windows-profile-installer/test.sh
 ./scripts/test-user-policy.sh
 ./scripts/test-client-transaction.sh
 ./scripts/test-connect-diagnosis.sh

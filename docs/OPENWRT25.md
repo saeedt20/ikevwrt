@@ -11,21 +11,23 @@ The application accepts only official release builds with firewall4, IPv4 WAN
 and matching official package feeds. Vendor firmware, snapshots, firewall3 and
 a mismatched package manager fail before dependency installation.
 
-The LuCI and shell source itself is portable, but the APK has kernel-module
-dependencies. Every OpenWrt target therefore needs its own exact SDK build and
+The LuCI and shell source itself is portable, but the runtime installs kernel
+modules and other target-specific dependencies. Every OpenWrt target needs its own exact SDK build and
 real-router validation. Never install an APK built for one target on another.
 
-The currently validated APK target is:
+The default build target is Xiaomi Redmi Router AX6S:
 
 - OpenWrt `25.12.5`;
-- `ipq40xx/chromium`;
-- `arm_cortex-a7_neon-vfpv4` (ARMv7);
-- Google WiFi (Gale) running official OpenWrt.
+- `mediatek/mt7622`;
+- `aarch64_cortex-a53` (ARMv8);
+- Xiaomi Redmi Router AX6S running official OpenWrt.
 
-ARMv8/ARMv9, MIPS and x86_64 remain buildable candidates, not verified support,
-until their exact SDK builds and router tests have passed.
+This profile matches the inspected router's release, board and package
+architecture. The APK is built with the checksum-verified official SDK.
+Installation, VPN/DNS changes and reboot testing on the router remain required
+before claiming full runtime validation. See [the audit report](AUDIT-FIXES.md).
 
-The release workflow also builds this ARMv8 candidate:
+An optional manual build preset exists for this ARMv8 candidate:
 
 - `mediatek/filogic`;
 - `aarch64_cortex-a53`;
@@ -37,8 +39,7 @@ router validation checklist below.
 
 ## Building another target
 
-Google WiFi AC-1304 remains the default release target. To produce an APK for
-another official OpenWrt 25.12 target, run the manual **Build target APK**
+To produce an APK for another official OpenWrt 25.12 target, run the manual **Build target APK**
 workflow and supply the exact `release` and `target/subtarget` reported by the
 router. The workflow downloads the official target checksum index, selects and
 verifies the matching SDK, reads `CONFIG_TARGET_ARCH_PACKAGES` from that SDK,
@@ -48,7 +49,7 @@ public release or claim compatibility.
 The same operation is available to a maintainer on a Linux build host:
 
 ```sh
-./scripts/build-apk-target.sh 25.12.5 ipq40xx/chromium
+./scripts/build-apk-target.sh 25.12.5 mediatek/mt7622
 
 # ARMv8 Cortex-A53 preset (MediaTek Filogic)
 sh ./scripts/build-apk-aarch64-cortex-a53.sh 25.12.5
@@ -65,7 +66,7 @@ APK and its SHA-256 checksum from the GitHub Release, copy it to the router,
 and install it explicitly:
 
 ```sh
-apk add --allow-untrusted /tmp/luci-app-ikev2-manager_*.apk
+apk add --allow-untrusted /tmp/luci-app-ikev2-manager-1.13.3.apk
 ```
 
 No signing key, package feed or system-wide `apk upgrade` is required. To

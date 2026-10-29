@@ -109,7 +109,7 @@ const windowStub = {
 };
 
 const L = {
-	resolveDefault: function(p, d) { return Promise.resolve(d); },
+	resolveDefault: function(p, d) { return Promise.resolve(p).catch(function() { return d; }); },
 	Poll: { add() {}, remove() {} }
 };
 const baseclass = { extend: function(o) { return o; } };
@@ -136,11 +136,11 @@ const uiStub = {
 };
 const pollStub = { add() {}, remove() {} };
 
-function loadModule(file, extra) {
+function loadModule(file, extra, fileApi) {
 	const src = fs.readFileSync(path.join(root, 'luci-ikev2-manager', file), 'utf8');
 	const names = [ 'window', 'document', 'L', 'baseclass', 'E', 'fs', 'ui', 'uci',
 		'view', 'poll', 'common' ];
-	const values = [ windowStub, documentStub, L, baseclass, E, fsStub, uiStub, {},
+	const values = [ windowStub, documentStub, L, baseclass, E, fileApi || fsStub, uiStub, {},
 		{ extend: function(o) { return o; } }, pollStub, extra ];
 	return new Function(names.join(','), src).apply(null, values);
 }
@@ -228,20 +228,6 @@ literalPresets.forEach(function(endpoint) {
 		fail('bootstrap preset ' + endpoint + ' does not use a literal IPv4 host');
 	if (!/^(https|tls|quic):\/\//.test(endpoint))
 		fail('bootstrap preset ' + endpoint + ' uses a scheme the runtime refuses');
-});
-
-// Protocol labels reach _() through a variable, so the translation coverage
-// check cannot see them. Every offered label must still be in the dictionary.
-const sharedDict = fs.readFileSync(path.join(root, 'luci-ikev2-manager', 'shared.js'), 'utf8');
-const protocolBlockStart = source.indexOf('var dnsProtocols = [');
-const protocolLabels = source.slice(protocolBlockStart,
-	source.indexOf('\n];', protocolBlockStart))
-	.match(/label: '([^']*)'/g).map(function(line) {
-		return line.replace(/^label: '|'$/g, '');
-	}).concat([ 'Plain DNS (IPv4:port)' ]);
-protocolLabels.forEach(function(label) {
-	if (sharedDict.indexOf("\t'" + label + "':") < 0)
-		fail('protocol label "' + label + '" has no translation');
 });
 
 // The protocol is chosen per endpoint, not once for a whole group. A group
@@ -364,6 +350,35 @@ try {
 }
 if (!setupPage || !setupPage.children || !setupPage.children.length)
 	fail('setup.js render() produced an empty page');
+
+// A slow dependency probe must not keep the whole overview behind a spinner.
+let finishDoctor;
+let doctorCalls = 0;
+const delayedDoctor = new Promise(function(resolve) { finishDoctor = resolve; });
+const deferredSetup = loadModule('setup.js', common, {
+	exec: function(helper, args) {
+		if (args[0] === 'doctor-ui') {
+			doctorCalls++;
+			return delayedDoctor;
+		}
+		return Promise.resolve({ stdout: args[0] === 'get' ? setupValue : '' });
+	}
+});
+let loadTimeout;
+const setupLoadTest = Promise.race([
+	deferredSetup.load(),
+	new Promise(function(resolve, reject) {
+		loadTimeout = setTimeout(function() { reject(new Error('overview waited for diagnostics')); }, 1000);
+	})
+]).then(function(data) {
+	clearTimeout(loadTimeout);
+	if (doctorCalls !== 0 || !data[1].pending)
+		fail('overview load must defer diagnostics until rendering');
+	const rendered = deferredSetup.render(data);
+	if (!rendered.children.length || doctorCalls !== 1)
+		fail('overview did not render while diagnostics were pending');
+	finishDoctor({ stdout: doctorOut });
+});
 
 const setupSource = fs.readFileSync(path.join(root, 'luci-ikev2-manager', 'setup.js'), 'utf8');
 if (setupSource.indexOf("common.section(_('Tunnel routing')") < 0)
@@ -539,7 +554,7 @@ global.FileReader = class {
 		this.onload();
 	}
 };
-Promise.all(pickers.map(function(picker, index) {
+Promise.all([ setupLoadTest ].concat(pickers.map(function(picker, index) {
 	const field = picker.children[0];
 	const button = picker.children[1];
 	const chooser = picker.children[2];
@@ -551,7 +566,7 @@ Promise.all(pickers.map(function(picker, index) {
 			(index ? 'key' : 'cert') + '.pem')
 			fail('uploaded router path was not written into the matching field');
 	});
-})).then(function() {
+}))).then(function() {
 	if (materialWrites.length !== 2 || materialImports.length !== 2)
 		fail('the local files were not uploaded through the restricted helper');
 	if (!materialWrites.every(function(entry) { return entry[2] === 384; }))

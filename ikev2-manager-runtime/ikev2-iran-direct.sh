@@ -23,6 +23,10 @@ refresh_interval="${IKEV2_IRAN_REFRESH_INTERVAL:-86400}"
 refresh_retry="${IKEV2_IRAN_REFRESH_RETRY:-3600}"
 uptime_file="${IKEV2_IRAN_UPTIME_FILE:-/proc/uptime}"
 config='ikev2-manager.domains.iran_direct'
+runtime_lib_dir="${IKEV2_RUNTIME_LIB_DIR:-/usr/libexec/ikev2-manager.d}"
+action_lock_dir="${IKEV2_ACTION_LOCK:-/var/run/ikev2-action.lock}"
+action_lock_status="${IKEV2_ACTION_LOCK_STATUS:-/var/run/ikev2-action.lock.status}"
+. "$runtime_lib_dir/actions.sh"
 
 enabled() { [ "$(uci -q get "$config" 2>/dev/null || true)" = 1 ]; }
 count() { [ -f "$1" ] && wc -l < "$1" || printf '0\n'; }
@@ -162,10 +166,11 @@ sync_pbr() {
 	uci commit pbr
 }
 apply() {
-	"${IKEV2_IRAN_PBR_INIT:-/etc/init.d/pbr}" restart >/dev/null 2>&1
+	"${IKEV2_IRAN_PBR_INIT:-/etc/init.d/pbr}" restart >/dev/null 2>&1 || return 1
 	if [ "$(uci -q get ikev2-manager.domains.engine 2>/dev/null || true)" = fakeip ]; then
-		/etc/init.d/ikev2-domain-router restart >/dev/null 2>&1
+		"${IKEV2_IRAN_DOMAIN_HELPER:-/usr/libexec/ikev2-domain-router}" refresh >/dev/null 2>&1 || return 1
 	fi
+	return 0
 }
 update() {
 	work="$(mktemp -d /tmp/ikev2-iran-direct.XXXXXX)" || exit 1
@@ -204,10 +209,15 @@ update() {
 	status
 }
 disable() {
-	uci set "$config=0"
-	uci commit ikev2-manager
-	sync_pbr
-	apply
+	previous="$(uci -q get "$config" 2>/dev/null || echo 0)"
+	if ! uci set "$config=0" || ! uci commit ikev2-manager ||
+	   ! sync_pbr || ! apply; then
+		uci set "$config=$previous"
+		uci commit ikev2-manager
+		sync_pbr || true
+		apply || true
+		return 1
+	fi
 	status
 }
 
@@ -272,12 +282,17 @@ schedule() {
 }
 run_async() {
 	action="$1" id="$2"
-	mkdir "$lock_dir" 2>/dev/null || {
+	pid_lock_acquire "$lock_dir" || {
 		write_action_status "$id" error 'Another Iranian list update is running.'
 		exit 1
 	}
-	trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT HUP INT TERM
-	if "$action" >/tmp/ikev2-iran-direct.log 2>&1; then
+	trap 'pid_lock_release "$lock_dir"' EXIT HUP INT TERM
+	if ! acquire_action_lock iran-direct "$id"; then
+		write_action_status "$id" error 'Another router action is already in progress.'
+		return 1
+	fi
+	trap 'pid_lock_release "$lock_dir"; release_action_lock' EXIT HUP INT TERM
+	if ( "$action" ) >/tmp/ikev2-iran-direct.log 2>&1; then
 		write_action_status "$id" ok 'Iranian direct routing updated.'
 	else
 		write_action_status "$id" error 'Iranian routing failed; previous configuration was preserved.'

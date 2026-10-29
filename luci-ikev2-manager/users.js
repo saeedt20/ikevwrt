@@ -5,7 +5,7 @@
 'require fs';
 'require ui';
 'require poll';
-'require ikev2-manager.shared-v20 as common';
+'require ikev2-manager.shared-v21 as common';
 
 // Shadow the global _() with the project translator for this module only;
 // see the note in shared.js about not replacing window._.
@@ -479,6 +479,8 @@ return view.extend({
 		var sessions = {};
 		var online = 0;
 		var list = E('div', {});
+		var listSignature = '';
+		var sessionRefreshers = [];
 		var userCount = common.pill('', 'info');
 		var onlineCount = common.pill('', 'neutral');
 		var actionResult = common.inlineResult();
@@ -546,27 +548,43 @@ return view.extend({
 
 		function renderList() {
 			var userCards = [];
+			sessionRefreshers = [];
 			users.forEach(function(entry) {
 				var active = sessions[entry.name] || [];
 				var sessionNode = active.length ? E('div', { 'class': 'ikev2-session-list' },
 				active.map(function(session) {
 					var disconnectLabel = _('Disconnect');
+					var duration = E('span', {}, []);
+					var received = E('span', {}, []);
+					var sent = E('span', {}, []);
+					function updateSession() {
+						var current = (sessions[entry.name] || []).find(function(item) {
+							return item.id === session.id;
+						}) || session;
+						duration.textContent = _('Online for %s').format(common.formatDuration(current.established));
+						received.textContent = common.formatBytes(current.bytesReceived);
+						sent.textContent = common.formatBytes(current.bytesSent);
+						if (received.parentNode)
+							received.parentNode.setAttribute('aria-label', _('Received %s').format(received.textContent));
+						if (sent.parentNode)
+							sent.parentNode.setAttribute('aria-label', _('Sent %s').format(sent.textContent));
+					}
+					sessionRefreshers.push(updateSession);
+					updateSession();
 					return E('div', { 'class': 'ikev2-session' }, [
 						E('div', { 'class': 'ikev2-session-main' }, [
 							E('span', { 'class': 'ikev2-session-address' }, [
 								(session.vips || []).join(', ') || session.host || '-'
 							]),
 							E('div', { 'class': 'ikev2-session-meta' }, [
-								E('span', {}, [
-									_('Online for %s').format(common.formatDuration(session.established))
-								]),
+								duration,
 								E('span', {
 									'class': 'ikev2-traffic received',
 									'title': _('Received'),
 									'aria-label': _('Received %s').format(common.formatBytes(session.bytesReceived))
 								}, [
 									common.icon('down'),
-									E('span', {}, [ common.formatBytes(session.bytesReceived) ])
+									received
 								]),
 								E('span', {
 									'class': 'ikev2-traffic sent',
@@ -574,7 +592,7 @@ return view.extend({
 									'aria-label': _('Sent %s').format(common.formatBytes(session.bytesSent))
 								}, [
 									common.icon('up'),
-									E('span', {}, [ common.formatBytes(session.bytesSent) ])
+									sent
 								])
 							])
 						]),
@@ -671,7 +689,18 @@ return view.extend({
 				else
 					disconnectAll.disabled = !online;
 			}
-			renderList();
+			var signature = JSON.stringify([ users, Object.keys(sessions).sort().map(function(user) {
+				return [ user, sessions[user].map(function(session) {
+					return [ session.id, session.vips, session.host ];
+				}) ];
+			}) ]);
+			if (signature !== listSignature) {
+				listSignature = signature;
+				renderList();
+			}
+			else {
+				sessionRefreshers.forEach(function(update) { update(); });
+			}
 		}
 
 		var add = actionButton('addUser', _('Add user'), 'cbi-button-add', function() {
@@ -687,7 +716,11 @@ return view.extend({
 					  onSuccess: refresh });
 			});
 		setData(data);
-		poll.add(function() { return refresh(true); }, 5);
+		poll.add(function() {
+			if (document.hidden)
+				return Promise.resolve();
+			return refresh(true);
+		}, 5);
 
 		return E([
 			common.styles(),

@@ -1082,14 +1082,18 @@ validate_dns_server() {
 	selected="$(selected_test_domain)"
 	if [ -n "$selected" ]; then
 		selected_ip="$(lookup_address "$selected" "$server")"
-		is_fakeip "$selected_ip" ||
-			die "Selected domain did not receive FakeIP: $selected -> ${selected_ip:-none}"
+		is_fakeip "$selected_ip" || {
+			printf 'Selected domain did not receive FakeIP: %s -> %s\n' "$selected" "${selected_ip:-none}" >&2
+			return 1
+		}
 	fi
 	control='openwrt.org'
 	grep -qx "$control" "$domain_file" 2>/dev/null && control='example.com'
 	control_ip="$(lookup_address "$control" "$server")"
-	[ -n "$control_ip" ] && ! is_fakeip "$control_ip" ||
-		die "Control domain did not receive a real address: $control -> ${control_ip:-none}"
+	[ -n "$control_ip" ] && ! is_fakeip "$control_ip" || {
+		printf 'Control domain did not receive a real address: %s -> %s\n' "$control" "${control_ip:-none}" >&2
+		return 1
+	}
 }
 
 runtime_healthy() {
@@ -1590,6 +1594,12 @@ resume_routing() {
 	done
 	if ! nft_start; then
 		write_status error 'TProxy could not be restored after resume'
+		return 1
+	fi
+	if ! use_fakeip_dns || ! wait_for_query 127.0.0.1 openwrt.org ||
+	   ! validate_dns_server 127.0.0.1; then
+		restore_dnsmasq >/dev/null 2>&1 || true
+		write_status error 'DNS cutover failed after resume'
 		return 1
 	fi
 	write_status active 'FakeIP routing resumed'

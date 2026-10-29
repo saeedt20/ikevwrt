@@ -1,9 +1,7 @@
-# IkevWrt — IKEv2 for OpenWrt
+# User guide
 
 [![CI](https://github.com/saeedt20/ikevwrt/actions/workflows/ci.yml/badge.svg)](https://github.com/saeedt20/ikevwrt/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
-**[مستندات فارسی](README.md)**
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 
 A LuCI application that connects your OpenWrt router to an IKEv2 server,
 decides which traffic goes through the tunnel, and can optionally turn the
@@ -11,6 +9,8 @@ router into an IKEv2 server for your own phones and laptops.
 
 Every setting is stored in UCI, and the application does not touch strongSwan,
 PBR, sing-box, dnsmasq or nftables until you explicitly allow it.
+
+**Hardware testing: Xiaomi Redmi Router AX6S only**, on OpenWrt 25.12.5 (`mediatek/mt7622`, `aarch64_cortex-a53`). Other targets and IPK builds are unverified.
 
 ## Contents
 
@@ -42,7 +42,7 @@ cat /etc/openwrt_release
 apk --print-arch 2>/dev/null || opkg print-architecture
 ```
 
-- If `apk` answers, your router needs an **APK** (OpenWrt 25.12 and newer).
+- If `apk` answers, your router needs an **APK** (OpenWrt 25.12.x).
 - If only `opkg` exists, your router needs an **IPK** (OpenWrt 24.10).
 
 The two are not interchangeable. The `version`, `target` and `DISTRIB_ARCH`
@@ -50,8 +50,9 @@ fields must match the file you download exactly.
 
 ### Step 2a: install on OpenWrt 24.10 (IPK)
 
-Download the latest `luci-app-ikev2-manager_*_all.ipk` from
-[Releases](https://github.com/saeedt20/ikevwrt/releases).
+IPK builds are unverified and are not included in the AX6S release. Maintainers
+can build `luci-app-ikev2-manager_*_all.ipk` locally with
+`./scripts/build-ipk.sh` for testing on OpenWrt 24.10.
 
 **From LuCI:**
 
@@ -77,7 +78,7 @@ installing. Release APKs are deliberately unsigned, so installation needs
 `--allow-untrusted`:
 
 ```sh
-apk add --allow-untrusted /tmp/luci-app-ikev2-manager_*.apk
+apk add --allow-untrusted /tmp/luci-app-ikev2-manager-*.apk
 ```
 
 > Do not run `apk upgrade` without a package name; it can change unrelated
@@ -270,30 +271,33 @@ identity, the CA certificate, the router's clock, the authentication method,
 and the strongSwan log. Then repair the dependencies without changing the
 installed versions.
 
-More detail: [Operations and diagnostics](docs/OPERATIONS.md)
+More detail: [Operations and diagnostics](OPERATIONS.md)
 
 ## Building from source
+
+The checks require Node.js, Python 3, jq, OpenSSL and Mono (`mono-devel`).
 
 ```sh
 ./scripts/ci-check.sh
 ```
 
 The IPK is written to `dist/`. Building an APK needs the official SDK for the
-exact target; see [OpenWrt 25.12 and APK](docs/OPENWRT25.md).
+exact target; see [OpenWrt 25.12 and APK](OPENWRT25.md).
+The default APK profile targets Redmi AX6S on OpenWrt 25.12.5 (`mediatek/mt7622`).
 
 ## Documentation
 
-- [Repository map](docs/MAP.md)
-- [Operations and diagnostics](docs/OPERATIONS.md)
-- [OpenWrt 25.12 and APK compatibility](docs/OPENWRT25.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [NOTICE for external lists](NOTICE)
+- [Repository map](MAP.md)
+- [Operations and diagnostics](OPERATIONS.md)
+- [OpenWrt 25.12 and APK compatibility](OPENWRT25.md)
+- [Architecture](ARCHITECTURE.md)
+- [NOTICE for external lists](../NOTICE)
 
 ## Starting IkevWrt
 
-IkevWrt is an independent continuation of [dreamboxone/ikev2-openwrt](https://github.com/dreamboxone/ikev2-openwrt), maintained by [saeedt20](https://github.com/saeedt20). The starting point is commit `048eb13`, version `1.13.2`. Persian translation, RTL layout and direct routing for Iranian destinations are inherited from that repository.
+IkevWrt is an independent continuation of [dreamboxone/ikev2-openwrt](https://github.com/dreamboxone/ikev2-openwrt), maintained by [saeedt20](https://github.com/saeedt20). The starting point is commit `048eb13`, version `1.13.2`. Direct routing for Iranian destinations is inherited from that repository. The interface is English-only.
 
-Package names and internal paths retain `luci-app-ikev2-manager` for compatibility. No IkevWrt release has been published yet; download instructions become usable after the first release. APK feed settings and public keys still belong to upstream. Independent signed distribution requires a project-owned feed and signing key.
+Package names and internal paths retain `luci-app-ikev2-manager` for compatibility. APK feed settings and public keys still belong to upstream. Independent signed distribution requires a project-owned feed and signing key.
 
 ## Credits
 
@@ -304,9 +308,9 @@ architecture, the strongSwan and PBR integration and the LuCI interface are
 their work, and we are sincerely grateful to the original Russian author for
 building it and releasing it as open source.
 
-Thanks also to dreamboxone for the Persian localization and additional features inherited by this continuation.
+Thanks also to dreamboxone for the additional features inherited by this continuation.
 
 ## License
 
-Released under the [MIT License](LICENSE). Terms for the optional lists
-downloaded at runtime are described in [NOTICE](NOTICE).
+Released under the [MIT License](../LICENSE). Terms for the optional lists
+downloaded at runtime are described in [NOTICE](../NOTICE).

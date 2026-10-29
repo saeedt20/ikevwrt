@@ -277,3 +277,38 @@ uci() { case "$*" in *engine) echo fakeip;; *) echo 0;; esac; }
         assert len(closed)==count and not any(c.startswith('3333') for c in closed)
     run(closer + setup + 'close_device_connections 192.0.2.4', dict(env, API_FAIL='1'), False)
     print('audit: targeted proxy CIDR cleanup, credential handling and API errors OK')
+
+    # Resume must reconnect dnsmasq, not only prove that the worker answers.
+    resume = function('ikev2-manager-runtime/ikev2-domain-router.sh', 'resume_routing')
+    setup = '''
+dns_address=127.0.0.42
+init_config() { :; }
+check_config() { :; }
+wait_for_dns() { :; }
+nft_start() { :; }
+/etc/init.d/ikev2-domain-router() { return 0; }
+use_fakeip_dns() { echo cutover; [ "$FAIL_CUTOVER" = 0 ]; }
+wait_for_query() { echo "query:$1"; return 0; }
+validate_dns_server() { echo "validate:$1"; [ "$1" != 127.0.0.1 ] || [ "$FAIL_QUERY" = 0 ]; }
+restore_dnsmasq() { echo rollback; }
+write_status() { echo "state:$1"; }
+'''
+    for cutover, query in [('0', '0'), ('1', '0'), ('0', '1')]:
+        result = subprocess.run(['bash', '-c', setup + resume + '\nresume_routing'],
+                                env=dict(env, FAIL_CUTOVER=cutover, FAIL_QUERY=query),
+                                capture_output=True, text=True, timeout=10)
+        if cutover == query == '0':
+            assert result.returncode == 0 and 'validate:127.0.0.1' in result.stdout
+            assert result.stdout.index('cutover') < result.stdout.index('state:active')
+        else:
+            assert result.returncode != 0 and 'state:error' in result.stdout
+            assert 'state:active' not in result.stdout
+    validator = function('ikev2-manager-runtime/ikev2-domain-router.sh', 'validate_dns_server')
+    # A failed probe must return, so retries and rollback can execute.
+    run('''dns_address=127.0.0.42
+die() { exit 7; }
+selected_test_domain() { echo vpn.example; }
+lookup_address() { echo 203.0.113.4; }
+is_fakeip() { return 1; }
+''' + validator + '\nif validate_dns_server; then exit 1; fi\necho returned\n', env)
+    print('audit: resume DNS cutover, failure status and catchable probes OK')

@@ -9,9 +9,9 @@ on:
         default: "25.12.5"
         type: string
       target:
-        description: Exact target/subtarget, for example ipq40xx/chromium
+        description: Exact target/subtarget, for example mediatek/mt7622
         required: true
-        default: "ipq40xx/chromium"
+        default: "mediatek/mt7622"
         type: string
 
 permissions:

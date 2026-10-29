@@ -4,7 +4,7 @@
 'require view';
 'require fs';
 'require poll';
-'require ikev2-manager.shared-v20 as common';
+'require ikev2-manager.shared-v21 as common';
 
 // Shadow the global _() with the project translator for this module only;
 // see the note in shared.js about not replacing window._.
@@ -569,7 +569,11 @@ return view.extend({
 			});
 		}
 		updateConnectionView();
-		poll.add(refreshClientState, 5);
+		poll.add(function() {
+			if (document.hidden)
+				return Promise.resolve();
+			return refreshClientState();
+		}, 5);
 		var enabled = input('checkbox', value.enabled);
 		var address = input('text', value.remote_address, {
 			'placeholder': _('IPv4 address or hostname')

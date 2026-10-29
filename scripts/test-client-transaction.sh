@@ -170,6 +170,24 @@ cmp -s "$tmp/20-proxy-out.conf.before" "$tmp/root/etc/swanctl/conf.d/20-proxy-ou
 cmp -s "$tmp/90-proxy-out-secret.conf.before" "$tmp/root/etc/swanctl/conf.d/90-proxy-out-secret.conf"
 rm -f "$tmp/fail-commit" "$tmp/commit-count"
 
+mkdir -p "$tmp/root/etc/swanctl/x509" "$tmp/root/etc/swanctl/private"
+for role in old new; do
+	openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
+		-days 1 -subj "/CN=$role" -keyout "$tmp/$role.key" \
+		-out "$tmp/$role.crt" >/dev/null 2>&1
+done
+cp "$tmp/old.crt" "$tmp/root/etc/swanctl/x509/ikev2-client.pem"
+cp "$tmp/old.key" "$tmp/root/etc/swanctl/private/ikev2-client.key"
+write_input
+printf 'pubkey\n%s\n%s\n' "$tmp/new.crt" "$tmp/new.key" >>"$tmp/client.in"
+if TEST_CUSTOM_MODE=1 run_manager client-input >"$tmp/out" 2>"$tmp/err"; then
+	printf 'rejected certificate profile unexpectedly succeeded\n' >&2
+	exit 1
+fi
+grep -Fq 'Outbound custom configuration is missing' "$tmp/err"
+cmp -s "$tmp/old.crt" "$tmp/root/etc/swanctl/x509/ikev2-client.pem"
+cmp -s "$tmp/old.key" "$tmp/root/etc/swanctl/private/ikev2-client.key"
+
 for invalid_host in bad_host 999.999.999.999 host..example.test -vpn.example.test; do
 	write_input "$invalid_host" vpn.example.test
 	: >"$tmp/uci.log"
