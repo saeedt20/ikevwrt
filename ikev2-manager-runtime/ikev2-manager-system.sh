@@ -14,10 +14,9 @@ uci() {
 
 config='ikev2-manager'
 dns_input_file="${IKEV2_DNS_INPUT:-}"
-user_policy_helper="${IKEV2_USER_POLICY_HELPER:-/usr/libexec/ikev2-user-policy}"
-user_policy_init="${IKEV2_USER_POLICY_INIT:-/etc/init.d/ikev2-user-policy}"
 domain_router_helper="${IKEV2_DOMAIN_ROUTER_HELPER:-/usr/libexec/ikev2-domain-router}"
 device_runtime_helper="${IKEV2_DEVICE_RUNTIME_HELPER:-/usr/libexec/ikev2-device-routing}"
+iran_helper="${IKEV2_IRAN_HELPER:-/usr/libexec/ikev2-iran-direct}"
 nft_binary="${IKEV2_NFT:-/usr/sbin/nft}"
 dns_segments_status_file="${IKEV2_DNS_SEGMENTS_STATUS:-/var/run/ikev2-dns-segments.status}"
 doctor_ui_cache_file="${IKEV2_DOCTOR_UI_CACHE:-/var/run/ikev2-manager-doctor-ui.cache}"
@@ -165,13 +164,13 @@ sync_device_runtime() {
 	[ ! -x "$device_runtime_helper" ] || "$device_runtime_helper" sync
 }
 
-# Package upgrades must repair the DNS policy without restarting PBR, WAN,
-# strongSwan or the fw4 table. Managed DNS changes are applied through the same
+# Package upgrades repair DNS and the bundled Iran policy without restarting
+# WAN or strongSwan. Managed DNS changes are applied through the same
 # validated transaction as LuCI: resolver processes may restart briefly, while
 # failure restores their previous configuration and process state. Install the
 # owned nftables table before retiring old generated UCI sections.
 reconcile_upgrade_runtime() {
-	local changed=0 section dns_reconciled=0 runtime_schema=3
+	local changed=0 section dns_reconciled=0 runtime_schema=4
 	[ "$(getv globals configured)" = 1 ] || return 0
 	# A package release may contain only LuCI or documentation changes. Rebuild
 	# active resolver/routing state only when the generated runtime contract was
@@ -195,7 +194,10 @@ reconcile_upgrade_runtime() {
 		"$domain_router_helper" refresh || return 1
 	fi
 	sync_device_runtime || return 1
-	sync_inbound_user_policy || return 1
+	# Apply the offline snapshot in both routing engines, including saved additions.
+	if [ "$(defaultv domains iran_direct 0)" = 1 ]; then
+		"$iran_helper" enable || return 1
+	fi
 	for section in $(uci show firewall 2>/dev/null |
 		sed -n \
 			-e 's/^firewall\.\(ikev2pbr_dns_[A-Za-z0-9_]*\)=.*/\1/p' \
@@ -225,12 +227,6 @@ network_device() {
 	[ -n "$device" ] && printf '%s\n' "$device"
 }
 
-gateway_network() {
-	gateway="$(getv server gateway4)"
-	[ -n "$gateway" ] || return 0
-	ipcalc.sh "$gateway" 2>/dev/null |
-		awk -F= '/^NETWORK=/{network=$2}/^PREFIX=/{prefix=$2}END{if(network!=""&&prefix!="")print network "/" prefix}'
-}
 
 zone_exists() {
 	zone="$1"
@@ -263,19 +259,6 @@ managed_zone_name_available() {
 	fi
 }
 
-validate_server_zone_names() {
-	[ "$#" -eq 2 ] || die 'Expected inbound and outbound firewall zone names'
-	inbound_zone="$1"
-	outbound_zone="$2"
-	valid_name "$inbound_zone" || die 'Invalid inbound firewall zone name'
-	valid_name "$outbound_zone" || die 'Invalid outbound firewall zone name'
-	[ "$inbound_zone" != "$outbound_zone" ] ||
-		die 'Inbound and outbound firewall zones must be different'
-	managed_zone_name_available "$inbound_zone" ikev2pbr_in ||
-		die "Inbound firewall zone name '$inbound_zone' is already in use"
-	managed_zone_name_available "$outbound_zone" ikev2pbr_out ||
-		die "Outbound firewall zone name '$outbound_zone' is already in use"
-}
 
 port_range_contains() {
 	range="$1"
@@ -511,9 +494,7 @@ validate_runtime_config() {
 		die "WAN network '$wan_interface' does not exist"
 	zone_exists "$wan_zone" ||
 		die "WAN firewall zone '$wan_zone' does not exist"
-	validate_server_zone_names \
-		"$(defaultv server firewall_zone ikev2in)" \
-		"$(defaultv server outbound_zone ikev2out)"
+	valid_name "$(defaultv globals outbound_zone ikev2out)" || die 'Invalid outbound firewall zone'
 
 	for interface in $source_interfaces; do
 		[ "$interface" != "$wan_interface" ] ||
@@ -529,12 +510,6 @@ validate_runtime_config() {
 		zone_exists "$zone" ||
 			die "Firewall zone '$zone' does not exist"
 	done
-	if [ "$(getv server enabled)" = 1 ] && [ "$(defaultv server allow_lan 1)" = 1 ]; then
-		for zone in $(get_list server lan_zone); do
-			zone_exists "$zone" ||
-				die "Inbound LAN firewall zone '$zone' does not exist"
-		done
-	fi
 	if [ "$(defaultv domains engine nftset)" = fakeip ]; then
 		sing_box_fakeip_safe ||
 			die 'Reliable mode requires sing-box 1.13.19 or later'
@@ -686,16 +661,6 @@ doctor() {
 		printf 'strongswan_eap_client_security=warn:%s-cve-2025-62291\n' \
 			"${strongswan_version:-missing}"
 	fi
-	if pkg_version_at_least strongswan 6.0.7; then
-		printf 'strongswan_eap_server_security=ok:%s\n' "$strongswan_version"
-	else
-		printf 'strongswan_eap_server_security=warn:%s-cve-2026-47895\n' \
-			"${strongswan_version:-missing}"
-		if [ "$(getv server enabled)" = 1 ]; then
-			printf 'security_ok=0\n'
-			[ "${IKEV2_DOCTOR_ALLOW_RUNTIME_REPAIR:-0}" = 1 ] || ok=0
-		fi
-	fi
 	if [ "$(getv globals configured)" = 1 ]; then
 		if failclosed_check; then
 			printf 'failclosed_route=ok\n'
@@ -713,7 +678,7 @@ doctor() {
 		fi
 	fi
 
-	# Reserved XFRM if_id 42 (ipsec-out) and 43 (ipsec-in). A foreign xfrm
+	# Reserved XFRM if_id 42 (ipsec-out) only. A foreign xfrm
 	# interface holding either id collides with the ones this app creates.
 	xfrm_conflict="$(
 		ip -d link show type xfrm 2>/dev/null | awk '
@@ -721,8 +686,8 @@ doctor() {
 			/if_id/ {
 				for (i = 1; i <= NF; i++)
 					if ($i == "if_id") id = $(i + 1)
-				if (name != "ipsec-out" && name != "ipsec-in" &&
-				    (id == "42" || id == "0x2a" || id == "43" || id == "0x2b"))
+				if (name != "ipsec-out" &&
+				    (id == "42" || id == "0x2a"))
 					print name ":" id
 			}
 		'
@@ -735,7 +700,7 @@ doctor() {
 	fi
 
 	xfrm_name_conflicts=''
-	for name_id in 'ipsec-out:42:0x2a' 'ipsec-in:43:0x2b'; do
+	for name_id in 'ipsec-out:42:0x2a'; do
 		name="${name_id%%:*}"
 		rest="${name_id#*:}"
 		expected_dec="${rest%%:*}"
@@ -823,11 +788,7 @@ strongswan_security_check() {
 			pkg_version_at_least strongswan 6.0.3 ||
 				die 'Installed strongSwan is vulnerable to CVE-2025-62291; upgrade strongSwan before enabling the outbound EAP client'
 			;;
-		# Inbound compatibility is advisory. The installed OpenWrt package may be
-		# older than the upstream fix, but operators can deliberately keep the
-		# EAP server enabled; doctor reports the version without changing runtime.
-		server) return 0 ;;
-		*) die 'Expected strongSwan security mode: client or server' ;;
+			*) die 'Expected strongSwan security mode: client' ;;
 	esac
 }
 
@@ -870,9 +831,6 @@ libcurl4
 conntrack
 swanmon
 socat
-acme
-luci-app-acme
-acme-acmesh-dnsapi
 EOF
 }
 
@@ -1378,16 +1336,12 @@ sync_network() {
 }
 
 sync_firewall() {
-	wan_zone="$(getv globals wan_zone)"
-	server_enabled="$(getv server enabled)"
-	[ "$server_enabled" = 1 ] || server_enabled=0
-	inbound_zone="$(defaultv server firewall_zone ikev2in)"
-	outbound_zone="$(defaultv server outbound_zone ikev2out)"
+	outbound_zone="$(defaultv globals outbound_zone ikev2out)"
 	source_zones="$(get_list globals source_zone)"
-	validate_server_zone_names "$inbound_zone" "$outbound_zone"
-
+	valid_name "$outbound_zone" || die 'Invalid outbound firewall zone name'
+	managed_zone_name_available "$outbound_zone" ikev2pbr_out ||
+		die "Outbound firewall zone name '$outbound_zone' is already in use"
 	delete_prefixed_sections firewall ikev2pbr_
-
 	uci set firewall.ikev2pbr_out=zone
 	uci set "firewall.ikev2pbr_out.name=$outbound_zone"
 	uci set firewall.ikev2pbr_out.device='ipsec-out'
@@ -1396,171 +1350,14 @@ sync_firewall() {
 	uci set firewall.ikev2pbr_out.forward='REJECT'
 	uci set firewall.ikev2pbr_out.masq='1'
 	uci set firewall.ikev2pbr_out.mtu_fix='1'
-
-	uci set firewall.ikev2pbr_in=zone
-	uci set "firewall.ikev2pbr_in.name=$inbound_zone"
-	uci set firewall.ikev2pbr_in.device='ipsec-in'
-	uci set firewall.ikev2pbr_in.input='REJECT'
-	uci set firewall.ikev2pbr_in.output='ACCEPT'
-	uci set firewall.ikev2pbr_in.forward='REJECT'
-	uci set firewall.ikev2pbr_in.mtu_fix='1'
-
 	for zone in $source_zones; do
 		key="$(sanitize "$zone")"
 		section="ikev2pbr_${key}_out"
 		uci set "firewall.$section=forwarding"
 		uci set "firewall.$section.src=$zone"
 		uci set "firewall.$section.dest=$outbound_zone"
-
 	done
-
-	uci set firewall.ikev2pbr_server=rule
-	uci set firewall.ikev2pbr_server.name='IKEv2 PBR inbound server'
-	uci set "firewall.ikev2pbr_server.src=$wan_zone"
-	uci set firewall.ikev2pbr_server.proto='udp'
-	uci set firewall.ikev2pbr_server.dest_port='500 4500'
-	uci set firewall.ikev2pbr_server.target='ACCEPT'
-	uci set "firewall.ikev2pbr_server.enabled=$server_enabled"
-
-	uci set firewall.ikev2pbr_server_esp=rule
-	uci set firewall.ikev2pbr_server_esp.name='IKEv2 PBR inbound ESP'
-	uci set "firewall.ikev2pbr_server_esp.src=$wan_zone"
-	uci set firewall.ikev2pbr_server_esp.proto='esp'
-	uci set firewall.ikev2pbr_server_esp.target='ACCEPT'
-	uci set "firewall.ikev2pbr_server_esp.enabled=$server_enabled"
-
-	uci set firewall.ikev2pbr_in_dns=rule
-	uci set firewall.ikev2pbr_in_dns.name='IKEv2 PBR inbound DNS'
-	uci set "firewall.ikev2pbr_in_dns.src=$inbound_zone"
-	uci set firewall.ikev2pbr_in_dns.proto='tcp udp'
-	uci set firewall.ikev2pbr_in_dns.dest_port='53'
-	uci set firewall.ikev2pbr_in_dns.target='ACCEPT'
-	uci set "firewall.ikev2pbr_in_dns.enabled=$server_enabled"
-
 	uci commit firewall
-	sync_inbound_access
-}
-
-sync_inbound_access() {
-	server_enabled="$(getv server enabled)"
-	[ "$server_enabled" = 1 ] || server_enabled=0
-	inbound_zone="$(defaultv server firewall_zone ikev2in)"
-	outbound_zone="$(defaultv server outbound_zone ikev2out)"
-	wan_zone="$(getv globals wan_zone)"
-	[ -n "$wan_zone" ] || wan_zone='wan'
-	allow_internet="$(defaultv server allow_internet 1)"
-	allow_lan="$(defaultv server allow_lan 1)"
-	allow_router="$(defaultv server allow_router 0)"
-	router_ports="$(normalize_list "$(getv server router_ports)")"
-	public_ports=''
-	effective_internet="$allow_internet"
-	effective_lan="$allow_lan"
-	effective_router="$allow_router"
-	for policy in $(uci show "$config" 2>/dev/null |
-		sed -n "s/^${config}\.\([^.=]*\)=user_policy$/\1/p"); do
-		[ -n "$(uci -q get "$config.$policy.username" 2>/dev/null || true)" ] || continue
-		policy_public_ports="$(normalize_list \
-			"$(uci -q get "$config.$policy.public_ports" 2>/dev/null || true)")"
-		valid_port_list "$policy_public_ports" ||
-			die "Invalid public router ports in VPN user policy '$policy'"
-		for port in $policy_public_ports; do
-			case " $public_ports " in
-				*" $port "*) ;;
-				*) public_ports="${public_ports:+$public_ports }$port" ;;
-			esac
-		done
-		[ "$(uci -q get "$config.$policy.internet_access" 2>/dev/null || true)" = allow ] &&
-			effective_internet=1
-		case "$(uci -q get "$config.$policy.lan_access" 2>/dev/null || true)" in
-			all | limited) effective_lan=1 ;;
-		esac
-		[ "$(uci -q get "$config.$policy.router_access" 2>/dev/null || true)" = allow ] &&
-			effective_router=1
-	done
-
-	delete_prefixed_sections firewall ikev2access_
-	if [ "$server_enabled" != 1 ]; then
-		uci commit firewall
-		return 0
-	fi
-
-	if [ "$effective_internet" = 1 ]; then
-		uci set firewall.ikev2access_in_wan=forwarding
-		uci set "firewall.ikev2access_in_wan.src=$inbound_zone"
-		uci set "firewall.ikev2access_in_wan.dest=$wan_zone"
-
-		if zone_exists "$outbound_zone"; then
-			uci set firewall.ikev2access_in_out=forwarding
-			uci set "firewall.ikev2access_in_out.src=$inbound_zone"
-			uci set "firewall.ikev2access_in_out.dest=$outbound_zone"
-		fi
-	fi
-
-	if [ "$effective_lan" = 1 ]; then
-		for zone in $(get_list server lan_zone); do
-			key="$(sanitize "$zone")"
-			section="ikev2access_in_${key}"
-			uci set "firewall.$section=forwarding"
-			uci set "firewall.$section.src=$inbound_zone"
-			uci set "firewall.$section.dest=$zone"
-		done
-	fi
-
-	if [ "$effective_router" = 1 ]; then
-		uci set firewall.ikev2access_router=rule
-		uci set firewall.ikev2access_router.name='IKEv2 inbound access to router'
-		uci set "firewall.ikev2access_router.src=$inbound_zone"
-		uci set firewall.ikev2access_router.target='ACCEPT'
-		if [ -n "$router_ports" ]; then
-			uci set firewall.ikev2access_router.proto='tcp udp'
-			uci set "firewall.ikev2access_router.dest_port=$router_ports"
-		else
-			uci set firewall.ikev2access_router.proto='all'
-		fi
-	fi
-
-	if [ -n "$public_ports" ]; then
-		uci set firewall.ikev2access_public=rule
-		uci set firewall.ikev2access_public.name='IKEv2 inbound selected router services'
-		uci set "firewall.ikev2access_public.src=$inbound_zone"
-		uci set firewall.ikev2access_public.proto='tcp udp'
-		uci set "firewall.ikev2access_public.dest_port=$public_ports"
-		uci set firewall.ikev2access_public.target='ACCEPT'
-	fi
-
-	uci commit firewall
-}
-
-sync_inbound_user_policy() {
-	[ -x "$user_policy_helper" ] || return 0
-	policy_active=0
-	if [ "$(getv globals configured)" = 1 ] &&
-	   [ "$(getv server enabled)" = 1 ] &&
-	   [ "$(defaultv server custom_config 0)" != 1 ]; then
-		policy_active=1
-	fi
-	if [ "$policy_active" != 1 ]; then
-		if [ -x "$user_policy_init" ]; then
-			if "$user_policy_init" running >/dev/null 2>&1; then
-				"$user_policy_init" stop >/dev/null 2>&1 || return 1
-			fi
-			"$user_policy_init" disable >/dev/null 2>&1 || return 1
-		fi
-		"$user_policy_helper" stop >/dev/null 2>&1
-		return $?
-	fi
-	if [ "$(defaultv domains engine nftset)" = fakeip ] &&
-	   [ -x "$domain_router_helper" ]; then
-		"$domain_router_helper" ensure >/dev/null 2>&1 || return 1
-	fi
-	# Install the fail-closed table before starting the event watcher. Starting
-	# first would race its initial sync against this one on the same nft table.
-	"$user_policy_helper" sync >/dev/null || return 1
-	if [ -x "$user_policy_init" ]; then
-		"$user_policy_init" enable >/dev/null 2>&1 || return 1
-		"$user_policy_init" running >/dev/null 2>&1 ||
-			"$user_policy_init" start >/dev/null 2>&1 || return 1
-	fi
 }
 
 sync_pbr() {
@@ -1574,13 +1371,6 @@ sync_pbr() {
 		[ -n "$device" ] || die "Unable to resolve network device for '$interface'"
 		src="${src:+$src }@$device"
 	done
-	# Inbound VPN-server clients (ipsec-in) follow the domain policy like local
-	# networks only when both the server is enabled and the "VPN server" network
-	# is selected in Network Integration (globals.source_include_vpn, default on).
-	if [ "$(getv server enabled)" = 1 ] &&
-		[ "$(defaultv globals source_include_vpn 1)" = 1 ]; then
-		src="${src:+$src }@ipsec-in"
-	fi
 	# Per-device settings live in the application's own sections. Importing the
 	# previous representation here means an upgraded package converts on its
 	# first apply, without a separate migration step the operator has to run.
@@ -2921,7 +2711,7 @@ backup_uci_state() {
 			: >"$tmp/$package.absent"
 		fi
 	done
-	for service in ikev2-xfrm dnsproxy dnsmasq ikev2-dns-segments ikev2-domain-router pbr ikev2-health ikev2-user-policy; do
+	for service in ikev2-xfrm dnsproxy dnsmasq ikev2-dns-segments ikev2-domain-router pbr ikev2-health; do
 		[ -x "/etc/init.d/$service" ] || continue
 		if "/etc/init.d/$service" enabled >/dev/null 2>&1; then
 			enabled=1
@@ -2960,7 +2750,7 @@ restore_uci_state() {
 	while IFS="$(printf '\t')" read -r service enabled running; do
 		[ -n "$service" ] || continue
 		case "$service" in
-			pbr | ikev2-xfrm | ikev2-dns-segments | ikev2-domain-router | dnsproxy | dnsmasq | ikev2-health | ikev2-user-policy) ;;
+			pbr | ikev2-xfrm | ikev2-dns-segments | ikev2-domain-router | dnsproxy | dnsmasq | ikev2-health) ;;
 			*) restored=0; continue ;;
 		esac
 		[ -x "/etc/init.d/$service" ] || { restored=0; continue; }
@@ -2981,7 +2771,6 @@ restore_uci_state() {
 	done <"$dir/services.state"
 	[ ! -x /usr/share/pbr/pbr.user.ikev2out ] ||
 		/usr/share/pbr/pbr.user.ikev2out >/dev/null 2>&1 || restored=0
-	sync_inbound_user_policy >/dev/null 2>&1 || restored=0
 	if [ "$(getv globals configured)" = 1 ]; then
 		[ ! -x "$device_runtime_helper" ] ||
 			"$device_runtime_helper" sync >/dev/null 2>&1 || restored=0
@@ -3257,15 +3046,6 @@ remove_managed() {
 		/etc/init.d/ikev2-xfrm stop >/dev/null 2>&1 || return 1
 		/etc/init.d/ikev2-xfrm disable >/dev/null 2>&1 || return 1
 	fi
-	# The per-user table is the fail-closed guard in front of the deliberately
-	# broad fw4 zone forwarding. Keep it until those rules are reloaded and XFRM
-	# is down; deleting it earlier creates a transient access-policy bypass.
-	if [ -x "$user_policy_init" ]; then
-		"$user_policy_init" stop >/dev/null 2>&1 || return 1
-		"$user_policy_init" disable >/dev/null 2>&1 || return 1
-	elif [ -x "$user_policy_helper" ]; then
-		"$user_policy_helper" stop >/dev/null 2>&1 || return 1
-	fi
 	# Keep the independent atomic device table until every risky service and
 	# firewall transition has succeeded. A failed disable can then restore UCI
 	# without leaving configured mode missing its live DNS/device policy.
@@ -3299,7 +3079,6 @@ apply_system_inner() {
 		die 'PBR failed to rebuild; check /tmp/ikev2-manager-doctor.last and logread'
 	fw4 -q reload || die 'firewall4 reload failed after PBR restart'
 	sync_device_runtime || die 'Device policy failed to load'
-	sync_inbound_user_policy || die 'Inbound user policy failed to load'
 	ensure_forward_chain ||
 		die 'fw4 forward chain has no zone forwarding after apply (LAN->WAN would be dropped); rolled back'
 	failclosed_check >/dev/null ||
@@ -3342,59 +3121,6 @@ disable_managed() {
 	rm -rf "$backup_dir"
 }
 
-# Narrow runtime apply for Inbound Server saves. Most server edits only need a
-# firewall reload and a strongSwan reload (performed by the manager worker).
-# PBR itself is restarted only when enabling/disabling the server changes
-# whether @ipsec-in participates in the domain policy.
-apply_server_runtime() {
-	needs_pbr="${1:-0}"
-	[ "$(getv globals configured)" = 1 ] ||
-		die 'Base setup is not enabled'
-	[ "$needs_pbr" = 0 ] || [ "$needs_pbr" = 1 ] ||
-		die 'Invalid server PBR-change flag'
-	validate_runtime_config
-	sync_firewall
-	if [ "$needs_pbr" = 1 ]; then
-		sync_pbr
-	fi
-	/etc/init.d/ikev2-xfrm start || die 'Failed to update inbound XFRM interface'
-	firewall_check_strict || die 'firewall4 validation failed'
-	if [ "$needs_pbr" = 1 ]; then
-		pbr_restart_checked || die 'PBR failed to rebuild after server policy change'
-		failclosed_ipv6_check >/dev/null ||
-			die 'PBR IPv6 fail-closed route validation failed after server change'
-	fi
-	fw4 -q reload || die 'firewall4 reload failed'
-	sync_device_runtime || die 'Device policy failed to load'
-	ensure_forward_chain ||
-		die 'fw4 forward chain has no zone forwarding after server apply'
-	sync_inbound_user_policy ||
-		die 'Inbound user policy failed to load'
-	ensure_ipv6_failfast
-	/etc/init.d/ikev2-health start >/dev/null 2>&1 || true
-	if [ "$needs_pbr" = 1 ] &&
-	   [ "$(getv domains engine)" = fakeip ] &&
-	   [ -x /usr/libexec/ikev2-domain-router ]; then
-		/usr/libexec/ikev2-domain-router refresh ||
-			die 'FakeIP domain router refresh failed'
-	fi
-}
-
-apply_server_runtime_transaction() {
-	needs_pbr="${1:-0}"
-	backup_dir="$(backup_uci_state server-runtime)" ||
-		die 'Unable to back up router state before server apply'
-	if ! "$0" _server-apply-inner "$needs_pbr"; then
-		if restore_uci_state "$backup_dir"; then
-			rm -rf "$backup_dir"
-			die 'Inbound server runtime apply failed; previous router state was restored'
-		fi
-		rm -rf "$backup_dir"
-		die 'Inbound server runtime apply failed and automatic rollback was incomplete'
-	fi
-	rm -rf "$backup_dir"
-}
-
 show_config() {
 	domain_status=''
 	if [ -x /usr/libexec/ikev2-domain-router ]; then
@@ -3411,7 +3137,6 @@ show_config() {
 	printf 'dns_enforce=%s\n' "$(getv globals dns_enforce)"
 	printf 'block_dot=%s\n' "$(getv globals block_dot)"
 	printf 'source_include_vpn=%s\n' "$(defaultv globals source_include_vpn 1)"
-	printf 'server_enabled=%s\n' "$(getv server enabled)"
 	for field in engine service dnsmasq_upstream dnsmasq_cache nft rule healthy state message; do
 		if [ "$field" = engine ]; then
 			value="$(getv domains engine)"
@@ -3918,40 +3643,16 @@ case "${1:-}" in
 		fw4 -q reload || die 'Unable to reload the firewall'
 		sync_device_runtime || die 'Device DNS policy failed to load'
 		;;
-	server-apply)
-		apply_server_runtime_transaction "${2:-0}"
-		;;
-	_server-apply-inner)
-		apply_server_runtime "${2:-0}"
-		;;
-	validate-server-zones)
-		[ "$#" -eq 3 ] || die 'Expected: validate-server-zones inbound outbound'
-		validate_server_zone_names "$2" "$3"
-		;;
 	strongswan-security)
-		[ "$#" -eq 2 ] || die 'Expected: strongswan-security client|server'
+		[ "$#" -eq 2 ] || die 'Expected: strongswan-security client'
 		strongswan_security_check "$2"
 		;;
 	_upnp-check)
 		upnp_ikev2_check
 		;;
-	access-apply)
-		zone="$(defaultv server firewall_zone ikev2in)"
-		zone_exists "$zone" ||
-			die "Inbound firewall zone '$zone' does not exist"
-		sync_inbound_access
-		firewall_check_strict
-		fw4 -q reload
-		sync_device_runtime || die 'Device policy failed to load'
-		sync_inbound_user_policy ||
-			die 'Inbound user policy failed to load'
-		;;
 	disable)
 		disable_managed ||
 			die 'Unable to disable managed mode; previous state was preserved or restored'
-		;;
-	gateway-network)
-		gateway_network
 		;;
 	coverage-add)
 		coverage_add "${2:-}"
@@ -4006,6 +3707,6 @@ case "${1:-}" in
 		fi
 		;;
 	*)
-		die 'Usage: ikev2-manager-system {preflight|deps-plan|doctor|doctor-ui|failclosed-check|install-deps|remove-deps|deps-status|get|dns-get|dns-buffer-status|routing-pause-async|routing-resume-async|dns-set-async|set|set-async|apply|server-apply|validate-server-zones|strongswan-security|access-apply|disable|gateway-network|coverage-add|coverage-remove|coverage-async|device-async|action-status}'
+		die 'Usage: ikev2-manager-system {preflight|deps-plan|doctor|doctor-ui|failclosed-check|install-deps|remove-deps|deps-status|get|dns-get|dns-buffer-status|routing-pause-async|routing-resume-async|dns-set-async|set|set-async|apply|strongswan-security|disable|coverage-add|coverage-remove|coverage-async|device-async|action-status}'
 		;;
 esac

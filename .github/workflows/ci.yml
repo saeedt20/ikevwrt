@@ -51,7 +51,7 @@ jobs:
       - name: Validate and build
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends jq mono-devel
+          sudo apt-get install --yes --no-install-recommends jq
           ./scripts/ci-check.sh
       - name: Upload IPK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

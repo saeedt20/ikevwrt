@@ -4,7 +4,7 @@
 'require view';
 'require fs';
 'require poll';
-'require ikev2-manager.shared-v21 as common';
+'require ikev2-manager.shared-v23 as common';
 
 // Shadow the global _() with the project translator for this module only;
 // see the note in shared.js about not replacing window._.
@@ -452,6 +452,31 @@ function findOutbound(sas) {
 	return null;
 }
 
+function installedOutboundChild(sa) {
+	return sa && sa.state === 'ESTABLISHED' ?
+		Object.values(sa['child-sas'] || {}).find(function(item) {
+			return item.name === 'proxy4' && item.state === 'INSTALLED';
+		}) : null;
+}
+
+function connectionField(name, title, control, help, content) {
+	control.id = 'ikev2-client-' + name;
+	var label = common.fieldLabel(title, help);
+	label.htmlFor = control.id;
+	return E('div', { 'class': 'ikev2-connection-field', 'data-field': name }, [
+		label, content || control
+	]);
+}
+
+function dnsDisclosure(title, description, content, status) {
+	return E('details', { 'class': 'ikev2-dns-disclosure' }, [
+		E('summary', {}, [ E('span', {}, [ title ]), status ]),
+		E('div', { 'class': 'ikev2-dns-disclosure-body' }, [
+			E('p', { 'class': 'ikev2-panel-note' }, [ description ]), content
+		])
+	]);
+}
+
 function writeProfileInput(value) {
 	var token = common.inputToken();
 	return fs.write('/var/run/ikev2-manager-profile-' + token + '.in', value, 384)
@@ -501,8 +526,7 @@ return view.extend({
 		var dnsSegments = parseDnsSegments((data[5] && data[5].stdout) || '');
 		var customMode = (data[2].stdout || '').trim() === '1';
 		var outbound = findOutbound(common.parseSwanmon(data[1]));
-		var child = outbound && Object.values(outbound['child-sas'] || {})
-			.find(function(item) { return item.name === 'proxy4'; });
+		var child = installedOutboundChild(outbound);
 		var statusPill = common.pill('', 'neutral');
 		var rawModePill = common.pill('', 'neutral');
 
@@ -510,8 +534,8 @@ return view.extend({
 			var valueNode = E('div', { 'class': 'ikev2-card-value' });
 			var detailNode = E('div', { 'class': 'ikev2-card-detail' });
 			return {
-				node: E('div', { 'class': 'ikev2-card ' + (extraClass || '') }, [
-					E('div', { 'class': 'ikev2-card-label' }, [ label ]),
+				node: E('div', { 'class': 'ikev2-tunnel-stat ' + (extraClass || '') }, [
+					E('div', { 'class': 'ikev2-tunnel-stat-label' }, [ label ]),
 					valueNode,
 					detailNode
 				]),
@@ -522,13 +546,13 @@ return view.extend({
 
 		var gatewayCard = liveCard(_('Remote gateway'));
 		var virtualCard = liveCard(_('Virtual IPv4'));
-		var trafficCard = liveCard(_('Current SA traffic'));
-		var accumulatedTrafficCard = liveCard(_('Accumulated tunnel traffic'));
+		var trafficCard = liveCard(_('Current session'));
+		var accumulatedTrafficCard = liveCard(_('Total tunnel traffic'));
 
 		function updateConnectionView() {
 			common.setPill(statusPill,
-				customMode ? _('Custom config') : (child ? _('Connected') : _('Disconnected')),
-				customMode ? 'warn' : (child ? 'good' : 'bad'));
+				child ? _('Connected') : _('Disconnected'),
+				child ? 'good' : 'bad');
 			common.setPill(rawModePill,
 				customMode ? _('Override active') : _('Generated'),
 				customMode ? 'warn' : 'good');
@@ -537,7 +561,7 @@ return view.extend({
 			gatewayCard.detail.textContent = outbound ? outbound['remote-id'] : (value.remote_id || '');
 			virtualCard.value.textContent = outbound && (outbound['local-vips'] || [])[0] || '-';
 			virtualCard.detail.textContent = child ?
-				common.formatDuration(child['install-time']) + ' ' + _('online') : '';
+				_('Connected for %s').format(common.formatDuration(outbound.established)) : '';
 			var down = child ? Number(child['bytes-in'] || 0) : 0;
 			var up = child ? Number(child['bytes-out'] || 0) : 0;
 			trafficCard.value.textContent = common.formatBytes(down + up);
@@ -563,8 +587,7 @@ return view.extend({
 			]).then(function(results) {
 				value = common.parseKeyValues(results[0].stdout || '');
 				outbound = findOutbound(common.parseSwanmon(results[1]));
-				child = outbound && Object.values(outbound['child-sas'] || {})
-					.find(function(item) { return item.name === 'proxy4'; });
+				child = installedOutboundChild(outbound);
 				updateConnectionView();
 			});
 		}
@@ -643,16 +666,31 @@ return view.extend({
 		}
 		var clientCertPicker = materialPicker(clientCert, 'cert');
 		var clientKeyPicker = materialPicker(clientKey, 'key');
-			var password = input('password', '', {
-				'placeholder': _('Leave blank to keep the current password'),
-				'autocomplete': 'new-password'
+		var password = input('password', '', {
+			'placeholder': _('Leave blank to keep the current password'),
+			'autocomplete': 'new-password'
 		});
+		var addressField = connectionField('address', _('Remote address'), address,
+			_('VPN server hostname or IPv4 address.'));
+		var identityField = connectionField('identity', _('Remote identity'), remoteId,
+			_('Identity in the VPN server certificate.'));
+		var authField = connectionField('authentication', _('Authentication method'), authMethodSelect);
+		authField.classList.add('ikev2-connection-field-wide');
+		var usernameField = connectionField('username', _('EAP username'), username,
+			_('Use your provider’s IKEv2 account name.'));
+		var passwordField = connectionField('password', _('New EAP password'), password,
+			_('Leave blank to keep the saved password.'));
+		var certField = connectionField('certificate', _('Client certificate path'), clientCert,
+			_('PEM certificate on the router, or upload a file.'), clientCertPicker);
+		var keyField = connectionField('key', _('Client private key path'), clientKey,
+			_('PEM private key on the router, or upload a file.'), clientKeyPicker);
 		function updateAuthFields() {
 			var method = authMethodSelect.value;
 			var isEapMschap = method === 'eap-mschapv2';
-			password.style.display = isEapMschap ? '' : 'none';
-			clientCertPicker.style.display = isEapMschap ? 'none' : '';
-			clientKeyPicker.style.display = isEapMschap ? 'none' : '';
+			usernameField.style.display = method === 'pubkey' ? 'none' : '';
+			passwordField.style.display = isEapMschap ? '' : 'none';
+			certField.style.display = isEapMschap ? 'none' : '';
+			keyField.style.display = isEapMschap ? 'none' : '';
 		}
 		authMethodSelect.addEventListener('change', updateAuthFields);
 		updateAuthFields();
@@ -681,21 +719,14 @@ return view.extend({
 		var reconnect = E('button', { 'class': 'cbi-button cbi-button-neutral' }, [
 			_('Reconnect')
 		]);
-		var tunnelDnsUpstream = dnsEndpointEditor(
-			value.tunnel_dns_upstream ||
-				'https://dns.google/dns-query https://dns.cloudflare.com/dns-query',
-			'https://dns.example/dns-query', _('Add DoH server'),
-			_('No tunnel DNS servers added'),
-			// The tunnel resolver is a sing-box server of type "https" bound to
-			// ipsec-out, so DoH is the only scheme it can carry.
-			{ protocol: 'doh' });
-		var tunnelDnsBootstrap = dnsEndpointEditor(
-			value.tunnel_dns_bootstrap ||
-				'8.8.8.8:53 8.8.4.4:53 1.1.1.1:53 1.0.0.1:53',
-			'1.1.1.1:53', _('Add bootstrap server'),
-			_('No bootstrap servers added'),
-			{ bootstrap: true, choosable: true,
-				protocols: [ 'plain', 'doh', 'dot', 'doq' ] });
+		var tunnelDnsUpstream = {
+			node: E('code', {}, [ 'https://cloudflare-dns.com/dns-query' ]),
+			values: function() { return [ 'https://cloudflare-dns.com/dns-query' ]; }
+		};
+		var tunnelDnsBootstrap = {
+			node: E('code', {}, [ '1.1.1.1:53  1.0.0.1:53' ]),
+			values: function() { return [ '1.1.1.1:53', '1.0.0.1:53' ]; }
+		};
 		var connectResult = common.inlineResult();
 		var rawResult = common.inlineResult();
 		var rawToggle = E('button', { 'class': 'cbi-button' }, [ _('Edit raw config') ]);
@@ -776,7 +807,7 @@ return view.extend({
 				mtu.value(),
 				password.value,
 				reconnectCooldown.value(),
-				'custom',
+				'cloudflare',
 				tunnelUpstream.join(' '),
 				tunnelBootstrap.join(' '),
 				authMethodSelect.value,
@@ -1256,84 +1287,63 @@ return view.extend({
 			])
 		]), _('Advanced connection settings'));
 
+		connectionAdvanced.toggle.appendChild(document.createTextNode(_('Advanced')));
+
 		return E([
 			common.styles(),
-			E('div', { 'class': 'ikev2-page' }, [
-				common.header(_('Outbound IKEv2 Tunnel'),
-					_('The router uses this IPv4 IKEv2 tunnel for domains and devices selected on the Policy Routing page.'),
-					statusPill),
-				E('div', { 'class': 'ikev2-grid' }, [
-					gatewayCard.node,
-					virtualCard.node,
-					trafficCard.node,
-					accumulatedTrafficCard.node
+			E('div', { 'class': 'ikev2-page ikev2-tunnel-page' }, [
+				common.header(_('Outbound tunnel'),
+					_('Connect your router to an IKEv2 VPN provider.'), statusPill),
+				E('div', { 'class': 'ikev2-tunnel-layout' }, [
+					common.section(_('Connection settings'), '',
+						E('div', {}, [
+							common.toggleRow(enabled, _('Enable client'),
+								_('Restore the connection after startup or a dropped tunnel.')),
+							E('div', { 'class': 'ikev2-connection-fields' }, [
+								addressField, identityField, authField,
+								usernameField, passwordField, certField, keyField
+							]),
+							connectionAdvanced.panel,
+							E('div', { 'class': 'ikev2-actions bar' }, [
+								connectResult.node, reconnect, saveOnly, save
+							])
+						]), connectionAdvanced.toggle),
+					E('aside', { 'aria-label': _('Live connection') }, [
+						common.section(_('Live connection'), '', E('div', { 'class': 'ikev2-tunnel-stats' }, [
+							gatewayCard.node, virtualCard.node, accumulatedTrafficCard.node,
+							E('details', { 'class': 'ikev2-session-details' }, [
+								E('summary', {}, [ _('Current session traffic') ]), trafficCard.node
+							])
+						]))
+					])
 				]),
-				common.section(_('Connection'),
-					_('Changing these values reloads the tunnel profile and reconnects it. The PBR policy remains loaded.'),
-					E('div', {}, [
-						E('div', { 'class': 'ikev2-form-grid' }, [
-							common.fieldLabel(_('Enable client')),
-							common.switchLabel(enabled),
-							common.fieldLabel(_('Remote address'),
-								_('IPv4 address or hostname of the IKEv2 gateway.')),
-							address,
-							common.fieldLabel(_('Remote identity'),
-								_('Certificate identity expected from the VPS.')),
-							remoteId,
-							common.fieldLabel(_('EAP username')),
-							username,
-							common.fieldLabel(_('Authentication method'),
-								_('EAP-MSCHAPv2 uses username and password. Certificate and EAP-TLS require a client certificate and private key on the router.')),
-							authMethodSelect,
-							common.fieldLabel(_('Client certificate path'),
-								_('Path to the PEM-encoded client certificate on the router.')),
-							clientCertPicker,
-							common.fieldLabel(_('Client private key path'),
-								_('Path to the PEM-encoded private key on the router.')),
-							clientKeyPicker,
-							common.fieldLabel(_('New EAP password'),
-								_('Visible while editing; leave blank to preserve the saved secret.')),
-							password
-						]),
-						connectionAdvanced.panel,
-						E('div', { 'class': 'ikev2-actions bar' }, [ connectResult.node, reconnect, saveOnly, save ])
-					]),
-					connectionAdvanced.toggle),
 				common.section(_('Tunnel DNS'),
-					_('Resolves VPN-routed destinations through the outbound tunnel. Servers are tried in order; failover occurs only after two failed checks and a successful probe of the next server.'),
+					_('VPN destinations use Cloudflare DoH through the tunnel.'),
 					E('div', {}, [
-						E('div', { 'class': 'ikev2-form-grid' }, [
-							common.fieldLabel(_('DoH servers'),
-								_('The first server is primary. Additional servers are ordered fallbacks.')),
-							tunnelDnsUpstream.node,
-							common.fieldLabel(_('Bootstrap DNS')),
-							tunnelDnsBootstrap.node
+						E('dl', { 'class': 'ikev2-tunnel-dns-values' }, [
+							E('dt', {}, [ _('DoH servers') ]), E('dd', {}, [ tunnelDnsUpstream.node ]),
+							E('dt', {}, [ _('Bootstrap DNS') ]), E('dd', {}, [ tunnelDnsBootstrap.node ])
 						]),
 						common.toggleRow(tunnelResolve,
 							_('Resolve all names through the tunnel'),
-							_('Off by default. Ordinary names are normally resolved over WAN, which is where per-protocol DNS filtering is applied. Turning this on removes that exposure, but it also removes the fallback group: while the tunnel is down, no name resolves for any client. Selected domains and destination segments are unaffected.')),
+							_('Also resolve ordinary names through the VPN; it also removes the fallback group. These queries stop when the VPN is down. Iran-direct and destination DNS segments keep their own resolvers.')),
 						E('div', { 'class': 'ikev2-actions bar' }, [
 							tunnelDnsResult.node, tunnelDnsApply
 						])
-					]),
-					common.pill(_('Fail-closed'), 'good')),
-				common.section(_('Router DNS upstream'),
-					_('Choose the public DNS upstream. In reliable mode dnsmasq sends public queries through sing-box, which uses dnsproxy as its upstream; in standard mode dnsmasq uses dnsproxy directly.'),
+					]), common.pill(_('Cloudflare only'), 'info')),
+				dnsDisclosure(_('Router DNS upstream'),
+					_('Choose the default resolver for names outside tunnel DNS and destination segments.'),
 					E('div', {}, [
 						E('div', { 'class': 'ikev2-form-grid' }, [
 							common.fieldLabel(_('DNS management'),
-								_('Existing settings are preserved until managed DNS is enabled.')),
-							dnsManaged
+								_('Existing settings are preserved until managed DNS is enabled.')), dnsManaged
 						]),
-						routerDnsBypassNote,
-						dnsManagedRows,
+						routerDnsBypassNote, dnsManagedRows,
 						E('div', { 'class': 'ikev2-actions bar' }, [ dnsResult.node, dnsSave ])
-					]),
-					dnsStatus),
-				common.section(_('Destination DNS segments'),
-					_('Send explicit domain suffixes to an independent resolver group. A segment resolves on its own terms whatever the rest of the policy does — including while every other name goes through the tunnel. Each has its own protocol and query strategy; unlisted names keep the global policy. Suffixes cannot overlap between enabled segments, at most eight run at once, and lists are stored locally rather than rebuilt with domain policy.'),
-					segmentRows,
-					segmentStatus)
+					]), dnsStatus),
+				dnsDisclosure(_('Destination DNS segments'),
+					_('Give specific domain suffixes their own resolver group. Up to eight groups can be active; enabled suffixes cannot overlap.'),
+					segmentRows, segmentStatus)
 			])
 		]);
 	},

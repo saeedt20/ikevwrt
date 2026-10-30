@@ -3,7 +3,7 @@
 'use strict';
 'require view';
 'require fs';
-'require ikev2-manager.shared-v21 as common';
+'require ikev2-manager.shared-v23 as common';
 
 // Shadow the global _() with the project translator for this module only;
 // see the note in shared.js about not replacing window._.
@@ -208,7 +208,6 @@ function checkRows(doctor) {
 		strongswan_openssl: _('strongSwan OpenSSL'),
 		strongswan_eap_mschapv2: _('strongSwan EAP-MSCHAPv2'),
 		strongswan_eap_client_security: _('Outbound EAP security'),
-		strongswan_eap_server_security: _('Inbound strongSwan version'),
 		strongswan_cohort: _('strongSwan package cohort'),
 		strongswan_x509: _('strongSwan X.509'),
 		device_policy_runtime: _('Device policy runtime')
@@ -262,7 +261,6 @@ function dependencyOverview(rows) {
 		failclosed_route: true,
 		xfrm_module: true,
 		strongswan_eap_client_security: true,
-		strongswan_eap_server_security: true,
 		device_policy_runtime: true
 	};
 	var issues = rows.filter(function(row) {
@@ -563,13 +561,6 @@ return view.extend({
 		// ── Network selectors ────────────────────────────────────────────
 		var wanField, protectedField;
 
-		// The inbound VPN server is a selectable "network": when on, its clients
-		// (ipsec-in) follow the same domain policy as local networks.
-		var vpnPick = value.server_enabled === '1'
-			? common.netPick('__vpn__', _('VPN server'), _('Inbound clients (ipsec-in)'),
-				value.source_include_vpn !== '0')
-			: null;
-
 		wanField = common.choiceWithCustom(value.wan_interface, netList.map(function(o) {
 			return { value: o.name, label: o.name + ' — ' + o.cidr };
 		}), { placeholder: 'wan' });
@@ -580,7 +571,6 @@ return view.extend({
 				}),
 			{
 				placeholder: 'lan iot',
-				prependNodes: vpnPick ? [ vpnPick.node ] : [],
 				customBelow: true
 			});
 		var protectedNode = protectedField.node;
@@ -597,7 +587,7 @@ return view.extend({
 				protectedVal,
 				dnsEnforce.checked ? '1' : '0',
 				blockDot.checked ? '1' : '0',
-				vpnPick ? (vpnPick.input.checked ? '1' : '0') : (value.source_include_vpn || '1')
+				'0'
 			];
 			args[0] = 'set-async';
 			return common.runJob({
@@ -697,7 +687,7 @@ return view.extend({
 					E('div', {}, [
 						E('div', { 'class': 'ikev2-form-grid' }, [
 							common.fieldLabel(_('WAN network'),
-								_('The internet uplink. Receives UDP 500/4500 when the inbound server is enabled.')),
+								_('The internet uplink used to reach the VPN provider.')),
 							wanField.node
 						]),
 						E('div', { 'style': 'margin-top:1.15rem' }, [

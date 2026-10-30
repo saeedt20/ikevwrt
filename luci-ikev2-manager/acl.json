@@ -11,7 +11,6 @@
 				"/tmp/ikev2-manager-deps.status": [ "read" ],
 				"/usr/libexec/ikev2-devices networks": [ "exec" ],
 				"/usr/libexec/ikev2-devices clients": [ "exec" ],
-				"/usr/libexec/ikev2-devices zones": [ "exec" ],
 				"/usr/libexec/ikev2-devices dump": [ "exec" ],
 				"/usr/libexec/ikev2-device-routing stats": [ "exec" ],
 				"/usr/libexec/ikev2-domains-community services": [ "exec" ],
@@ -21,17 +20,10 @@
 				"/usr/libexec/ikev2-domain-router status": [ "exec" ],
 				"/usr/libexec/ikev2-iran-direct status": [ "exec" ],
 				"/usr/libexec/ikev2-iran-direct read": [ "exec" ],
-				"/usr/libexec/ikev2-manager users-show": [ "exec" ],
-				"/usr/libexec/ikev2-manager diagnostic-report": [ "exec" ],
 				"/usr/libexec/ikev2-manager widget-status": [ "exec" ],
-				"/usr/libexec/ikev2-manager server-get": [ "exec" ],
-				"/usr/libexec/ikev2-manager server-access-get": [ "exec" ],
-				"/usr/libexec/ikev2-manager acme-get": [ "exec" ],
 				"/usr/libexec/ikev2-manager client-get": [ "exec" ],
 				"/usr/libexec/ikev2-manager action-status *": [ "exec" ],
-				"/usr/libexec/ikev2-manager advanced-mode inbound": [ "exec" ],
 				"/usr/libexec/ikev2-manager advanced-mode outbound": [ "exec" ],
-				"/usr/libexec/ikev2-manager advanced-read inbound": [ "exec" ],
 				"/usr/libexec/ikev2-manager advanced-read outbound": [ "exec" ],
 				"/usr/libexec/ikev2-manager-system get": [ "exec" ],
 				"/usr/libexec/ikev2-manager-system dns-get": [ "exec" ],
@@ -41,7 +33,11 @@
 				"/usr/sbin/swanmon list-sas": [ "exec" ]
 			},
 			"ubus": {
-				"file": [ "exec", "read", "stat" ]
+				"file": [
+					"exec",
+					"read",
+					"stat"
+				]
 			}
 		},
 		"write": {
@@ -52,34 +48,18 @@
 				"/tmp/ikev2-service-input-*.meta": [ "write" ],
 				"/tmp/ikev2-service-input-*.domains": [ "write" ],
 				"/tmp/ikev2-service-input-*.cidrs": [ "write" ],
-				"/var/run/ikev2-manager-user-*.in": [ "write" ],
 				"/var/run/ikev2-manager-client-*.in": [ "write" ],
 				"/var/run/ikev2-manager-material-*.in": [ "write" ],
-				"/var/run/ikev2-manager-server-*.in": [ "write" ],
 				"/var/run/ikev2-manager-profile-*.in": [ "write" ],
-				"/tmp/run/ikev2-manager-user-*.in": [ "write" ],
 				"/tmp/run/ikev2-manager-client-*.in": [ "write" ],
 				"/tmp/run/ikev2-manager-material-*.in": [ "write" ],
-				"/tmp/run/ikev2-manager-server-*.in": [ "write" ],
 				"/tmp/run/ikev2-manager-profile-*.in": [ "write" ],
-				"/usr/libexec/ikev2-manager user-secret-set *": [ "exec" ],
 				"/usr/libexec/ikev2-manager client-input *": [ "exec" ],
 				"/usr/libexec/ikev2-manager client-material-import *": [ "exec" ],
-				"/usr/libexec/ikev2-manager server-input *": [ "exec" ],
-				"/usr/libexec/ikev2-manager user-delete *": [ "exec" ],
-				"/usr/libexec/ikev2-manager disconnect *": [ "exec" ],
-				"/usr/libexec/ikev2-manager disconnect-all": [ "exec" ],
-				"/usr/libexec/ikev2-manager diagnostic-start *": [ "exec" ],
-				"/usr/libexec/ikev2-manager profile-export *": [ "exec" ],
-				"/tmp/ikev2-acme-*.in": [ "write" ],
 				"/tmp/ikev2-manager-dns-*.in": [ "write" ],
 				"/tmp/ikev2-manager-dns-segment-*.in": [ "write" ],
-				"/usr/libexec/ikev2-manager acme-set *": [ "exec" ],
-				"/usr/libexec/ikev2-manager acme-issue": [ "exec" ],
 				"/usr/libexec/ikev2-manager reconnect-client": [ "exec" ],
-				"/usr/libexec/ikev2-manager advanced-start inbound *": [ "exec" ],
 				"/usr/libexec/ikev2-manager advanced-start outbound *": [ "exec" ],
-				"/usr/libexec/ikev2-manager advanced-reset-start inbound": [ "exec" ],
 				"/usr/libexec/ikev2-manager advanced-reset-start outbound": [ "exec" ],
 				"/usr/libexec/ikev2-manager-system install-deps": [ "exec" ],
 				"/usr/libexec/ikev2-manager-system remove-deps": [ "exec" ],
@@ -93,21 +73,22 @@
 				"/usr/libexec/ikev2-manager-system dns-segment-input *": [ "exec" ],
 				"/usr/libexec/ikev2-domains-community schedule *": [ "exec" ],
 				"/usr/libexec/ikev2-domains-community service-schedule *": [ "exec" ],
-				"/usr/libexec/ikev2-domains-community refresh-schedule force": [ "exec" ],
 				"/usr/libexec/ikev2-domain-router activate-async": [ "exec" ],
 				"/usr/libexec/ikev2-domain-router deactivate-async": [ "exec" ],
 				"/usr/libexec/ikev2-domain-router router-traffic *": [ "exec" ],
 				"/usr/libexec/ikev2-domain-router tunnel-resolve *": [ "exec" ],
 				"/usr/libexec/ikev2-domain-router log-level *": [ "exec" ],
-				"/usr/libexec/ikev2-domain-router diagnostic-start *": [ "exec" ]
-				,"/usr/libexec/ikev2-iran-direct enable-async": [ "exec" ]
-				,"/usr/libexec/ikev2-iran-direct refresh-async": [ "exec" ]
-				,"/usr/libexec/ikev2-iran-direct disable-async": [ "exec" ]
-				,"/tmp/ikev2-iran-input-*": [ "write" ]
-				,"/usr/libexec/ikev2-iran-direct write *": [ "exec" ]
+				"/usr/libexec/ikev2-domain-router diagnostic-start *": [ "exec" ],
+				"/usr/libexec/ikev2-iran-direct enable-async": [ "exec" ],
+				"/usr/libexec/ikev2-iran-direct disable-async": [ "exec" ],
+				"/tmp/ikev2-iran-input-*": [ "write" ],
+				"/usr/libexec/ikev2-iran-direct write *": [ "exec" ]
 			},
 			"ubus": {
-				"file": [ "exec", "write" ]
+				"file": [
+					"exec",
+					"write"
+				]
 			}
 		}
 	}

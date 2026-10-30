@@ -2,26 +2,19 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Nikitid
 
-# Iranian destination lists are downloaded as data, never executed. The source
-# and its GPL-3.0 license are documented in README.md.
+# Iranian domains come from the packaged, attributed snapshot; no runtime downloads.
 set -eu
 umask 077
 
-base="${IKEV2_IRAN_BASE:-https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release}"
+bundle="${IKEV2_IRAN_BUNDLE:-/usr/share/ikev2-domains/iran-domains.txt}"
 directory="${IKEV2_IRAN_DIR:-/etc/ikev2-manager}"
 domains="$directory/iran-domains.txt"
 cidrs="$directory/iran-cidrs.txt"
 # Operator additions and removals, preserved across upgrades and editable from
-# the routing page. Entries are merged into the downloaded lists.
+# the routing page. Entries are merged into the packaged list.
 extra="$directory/iran-extra.txt"
 status_file="${IKEV2_IRAN_STATUS:-/var/run/ikev2-iran-direct.status}"
 lock_dir="${IKEV2_IRAN_LOCK:-/var/run/ikev2-iran-direct.lock}"
-# The refresh schedule lives on flash beside the lists, so a reboot neither
-# loses the last success nor forgets that today's refresh already ran.
-state_file="$directory/iran-refresh.state"
-refresh_interval="${IKEV2_IRAN_REFRESH_INTERVAL:-86400}"
-refresh_retry="${IKEV2_IRAN_REFRESH_RETRY:-3600}"
-uptime_file="${IKEV2_IRAN_UPTIME_FILE:-/proc/uptime}"
 config='ikev2-manager.domains.iran_direct'
 runtime_lib_dir="${IKEV2_RUNTIME_LIB_DIR:-/usr/libexec/ikev2-manager.d}"
 action_lock_dir="${IKEV2_ACTION_LOCK:-/var/run/ikev2-action.lock}"
@@ -37,16 +30,7 @@ status() {
 	printf 'extra=%s\n' "$(count "$extra")"
 	[ ! -f "$status_file" ] || cat "$status_file"
 }
-fetch() {
-	url="$1" output="$2"
-	if command -v curl >/dev/null 2>&1; then
-		curl --fail --location --silent --show-error --connect-timeout 10 \
-			--max-time 60 --output "$output" "$url"
-	else
-		uclient-fetch -q -T 60 -O "$output" "$url"
-	fi
-}
-# Shared by the downloaded list and the editable one, so an operator entry can
+# Shared by the packaged list and the editable one, so an operator entry can
 # never reach the WAN set through a rule the upstream list would be refused for.
 validate_cidrs() {
 	awk -F/ '
@@ -76,31 +60,14 @@ validate_cidrs() {
 
 prepare() {
 	work="$1"
-	fetch "$base/ir.txt" "$work/domains.raw"
-	fetch "$base/ircidr.txt" "$work/cidrs.raw"
-	[ "$(wc -c < "$work/domains.raw")" -le 2500000 ] || return 1
-	[ "$(wc -c < "$work/cidrs.raw")" -le 300000 ] || return 1
-	awk '
-		/^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
-		{ sub(/\r$/, ""); if (substr($0,1,2) != "+.") exit 1;
-		  d=substr($0,3); if (length(d)>253 || d !~ /^[a-z0-9.-]+$/ ||
-		  d ~ /\.\./ || d ~ /^[-.]/ || d ~ /[-.]$/) exit 1;
-		  print d }
-	' "$work/domains.raw" > "$work/domains.unsorted" || return 1
-	sort -u "$work/domains.unsorted" > "$work/domains"
-	# All .ir names match, including names absent from the upstream list.
-	printf 'ir\n' >> "$work/domains"
-	sort -u "$work/domains" > "$work/domains.sorted"
-	mv "$work/domains.sorted" "$work/domains"
-	validate_cidrs "$work/cidrs.raw" "$work/cidrs.unsorted" || return 1
-	sort -u "$work/cidrs.unsorted" > "$work/cidrs"
-	[ "$(count "$work/domains")" -ge "${IKEV2_IRAN_MIN_DOMAINS:-1000}" ] &&
-	[ "$(count "$work/cidrs")" -ge "${IKEV2_IRAN_MIN_CIDRS:-1000}" ] || return 1
+	[ -s "$bundle" ] || { echo 'Bundled Iranian domains are missing' >&2; return 1; }
+	cp "$bundle" "$work/domains" || return 1
+	: >"$work/cidrs"
 	merge_extra "$work"
 }
 
 # The editable list holds both kinds of entry, one per line. It is validated
-# with the same rules as the downloaded lists rather than more loosely: an entry
+# before applying it: an entry
 # that cannot be classified fails the update and names its line, because a typo
 # that is silently dropped looks exactly like a working rule on the page.
 merge_extra() {
@@ -128,7 +95,7 @@ merge_extra() {
 		}
 	' "$extra" || return 1
 	if [ -s "$work/extra.cidrs" ]; then
-		# Reuse the downloaded-list validator so the same reserved, private and
+		# Reuse the network validator so the same reserved, private and
 		# documentation ranges are refused here.
 		validate_cidrs "$work/extra.cidrs" "$work/extra.checked" || {
 			echo 'The editable Iran list contains an invalid IP network' >&2
@@ -157,7 +124,7 @@ sync_pbr() {
 		uci commit pbr
 		return 0
 	fi
-	[ -s "$domains" ] && [ -s "$cidrs" ] || return 1
+	[ -s "$domains" ] && [ -f "$cidrs" ] || return 1
 	uci set pbr.config.ipv6_enabled='1'
 	uci -q delete pbr.ikev2_iran_include || true
 	uci set pbr.ikev2_iran_include=include
@@ -175,13 +142,12 @@ apply() {
 update() {
 	work="$(mktemp -d /tmp/ikev2-iran-direct.XXXXXX)" || exit 1
 	trap 'rm -rf "$work"' EXIT HUP INT TERM
-	prepare "$work" || { echo 'Iran list download or validation failed' >&2; exit 1; }
+	prepare "$work" || { echo 'Bundled Iran list validation failed' >&2; exit 1; }
 	mkdir -p "$directory"
 	[ ! -f "$domains" ] || cp "$domains" "$work/domains.old"
 	[ ! -f "$cidrs" ] || cp "$cidrs" "$work/cidrs.old"
 	previous=0; enabled && previous=1
-	# A refresh that finds nothing new must not restart PBR: the rebuild costs a
-	# forwarding outage, and on the daily schedule most days change nothing.
+	# Reapplying the same bundled list must not restart PBR.
 	if [ "$previous" = 1 ] &&
 	   [ -f "$work/domains.old" ] && cmp -s "$work/domains" "$work/domains.old" &&
 	   [ -f "$work/cidrs.old" ] && cmp -s "$work/cidrs" "$work/cidrs.old" &&
@@ -219,49 +185,6 @@ disable() {
 		return 1
 	fi
 	status
-}
-
-state_value() { sed -n "s/^$1=//p" "$state_file" 2>/dev/null | tail -n1; }
-numeric() { case "$1" in '' | *[!0-9]*) printf '0\n' ;; *) printf '%s\n' "$1" ;; esac; }
-state_set() {
-	mkdir -p "$directory" || return 1
-	{
-		[ ! -f "$state_file" ] || grep -v "^$1=" "$state_file" || true
-		printf '%s=%s\n' "$1" "$2"
-	} > "$state_file.new" && mv "$state_file.new" "$state_file"
-}
-
-# Whether the scheduled refresh should run now. Never while the feature is off,
-# so a daily run can never re-enable what the operator turned off; at most once
-# per retry window; once after every boot; and otherwise daily at a stable
-# per-router offset so a fleet does not reach the publisher in the same minute.
-refresh_due() {
-	mode="${1:-}"
-	enabled || return 1
-	now="$(date +%s)"
-	last_attempt="$(numeric "$(state_value last_attempt)")"
-	last_success="$(numeric "$(state_value last_success)")"
-	jitter="$(state_value jitter)"
-	case "$jitter" in
-		'' | *[!0-9]*)
-			jitter=$(( ${RANDOM:-$$} % 3600 ))
-			[ "$mode" = probe ] || state_set jitter "$jitter" || true
-			;;
-	esac
-	uptime="$(numeric "$(cut -d. -f1 "$uptime_file" 2>/dev/null)")"
-	boot=$((now - uptime))
-	[ $((now - last_attempt)) -ge "$refresh_retry" ] || return 1
-	[ "$last_attempt" -ge "$boot" ] || return 0
-	[ $((now - last_success)) -ge $((refresh_interval + jitter)) ]
-}
-
-scheduled_update() {
-	state_set last_attempt "$(date +%s)" || true
-	if update; then
-		state_set last_success "$(date +%s)" || true
-		return 0
-	fi
-	return 1
 }
 
 write_action_status() {
@@ -341,20 +264,15 @@ case "${1:-}" in
 	status) status ;;
 	check-lists) check_lists ;;
 	sync) sync_pbr ;;
-	enable | refresh) update ;;
+	enable) update ;;
 	disable) disable ;;
 	enable-async) schedule update ;;
-	refresh-async) schedule update ;;
 	disable-async) schedule disable ;;
-	refresh-if-due)
-		refresh_due || exit 0
-		schedule scheduled_update
-		;;
 	read) [ -f "$extra" ] && cat "$extra" || true ;;
 	write) write_extra "${2:-}" ;;
 	_run) run_async "$2" "$3" ;;
 	*)
-		echo 'Usage: ikev2-iran-direct status|check-lists|sync|enable|refresh|disable|refresh-if-due|read|write TOKEN' >&2
+		echo 'Usage: ikev2-iran-direct status|check-lists|sync|enable|disable|read|write TOKEN' >&2
 		exit 2
 		;;
 esac

@@ -72,6 +72,7 @@ let statusResponse = {
 		'inbound_pool_loaded=1',
 		'pbr_domains=79',
 		'manual_addresses=2',
+		'device_fullroute=3',
 		'community_services=11',
 		'killswitch=active',
 		'domain_engine=fakeip',
@@ -199,17 +200,15 @@ const widget = factory(baseclass, fileApi, common, L, E, translate);
 	assert(text.includes('Policy routing'));
 	assert(text.includes('Reliable mode active'));
 	assert(text.includes('79 domains'));
+	assert(text.includes('3 full-route rules'));
+	assert(text.includes('Downloaded'));
+	assert(text.includes('Uploaded'));
 	assert(text.includes('11 service groups'));
 	assert(text.includes('2 address rules'));
 	assert(text.includes('PBR running'));
 	assert(text.includes('Fail-closed active'));
-	assert(text.includes('Inbound server'));
-	assert(text.includes('Server ready'));
-	assert(text.includes('1 active sessions'));
-	assert(text.includes('alice'));
-	assert(text.includes('10.90.0.10'));
-	assert(text.includes('4096 B'));
-	assert(text.includes('2048 B'));
+	assert(!text.includes('Inbound server'));
+	assert(!text.includes('alice'));
 	assert(!text.includes('offline-user'));
 	assert(!text.includes('no-data-plane'));
 
@@ -221,7 +220,6 @@ const widget = factory(baseclass, fileApi, common, L, E, translate);
 	const disconnected = widget.render(await widget.load());
 	assert(disconnected.textContent.includes('Action required'));
 	assert(disconnected.textContent.includes('Disconnected'));
-	assert(disconnected.textContent.includes('0 active sessions'));
 	assert(!disconnected.textContent.includes('Active inbound clients'));
 
 	statusResponse = {
@@ -248,7 +246,6 @@ const widget = factory(baseclass, fileApi, common, L, E, translate);
 	const degraded = widget.render(await widget.load());
 	assert(degraded.textContent.includes('PBR stopped'));
 	assert(degraded.textContent.includes('Fail-closed missing'));
-	assert(degraded.textContent.includes('Server degraded'));
 
 	const unavailable = widget.render([
 		{ code: 1, stdout: '' },

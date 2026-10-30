@@ -26,6 +26,13 @@ cat >"$tmp/bin/device-runtime" <<'EOF'
 [ "${1:-}" = sync ] || exit 1
 [ "${TEST_DEVICE_SYNC_FAIL:-0}" != 1 ]
 EOF
+cat >"$tmp/bin/iran-helper" <<'EOF'
+#!/bin/sh
+[ "$1" = enable ] || exit 1
+printf '%s\n' iran >>"$TEST_DOMAIN_ROUTER_LOG"
+[ "${TEST_IRAN_FAIL:-0}" != 1 ]
+EOF
+chmod 755 "$tmp/bin/iran-helper"
 chmod 755 "$tmp/bin/uci" "$tmp/bin/domain-router" "$tmp/bin/device-runtime"
 
 cat >"$tmp/uci/ikev2-manager" <<'EOF'
@@ -63,6 +70,7 @@ run_reconcile() {
 	UCI_STUB_DIR="$tmp/uci" \
 	IKEV2_UCI_CONFIG_DIR="$tmp/uci" \
 	IKEV2_UCI_BIN="$tmp/bin/uci" \
+	IKEV2_IRAN_HELPER="$tmp/bin/iran-helper" \
 	IKEV2_DEVICE_RUNTIME_HELPER="$tmp/bin/device-runtime" \
 	IKEV2_DOMAIN_ROUTER_HELPER="$tmp/bin/domain-router" \
 	IKEV2_RUNTIME_LIB_DIR="$root/ikev2-manager-runtime/lib" \
@@ -72,7 +80,7 @@ run_reconcile() {
 write_firewall
 run_reconcile
 [ "$(wc -l <"$TEST_DOMAIN_ROUTER_LOG" | tr -d ' ')" = 1 ]
-grep -Fxq 'globals.runtime_schema=3' "$tmp/uci/ikev2-manager"
+grep -Fxq 'globals.runtime_schema=4' "$tmp/uci/ikev2-manager"
 if grep -Eq '^ikev2pbr_(dns|dot)_' "$tmp/uci/firewall"; then
 	printf '%s\n' 'obsolete DNS/DoT firewall sections survived upgrade reconcile' >&2
 	exit 1
@@ -108,5 +116,18 @@ if TEST_DOMAIN_ROUTER_FAIL=1 run_reconcile >/dev/null 2>&1; then
 fi
 grep -Fxq 'ikev2pbr_dns_lan=redirect' "$tmp/uci/firewall"
 grep -Fxq 'ikev2pbr_dot_lan=rule' "$tmp/uci/firewall"
+
+# Standard routing must also apply the bundled list; a failure stays retryable.
+force_reconcile
+sed -i.bak 's/domains.engine=fakeip/domains.engine=nftset/' "$tmp/uci/ikev2-manager"
+printf '%s\n' domains.iran_direct=1 >>"$tmp/uci/ikev2-manager"
+: >"$TEST_DOMAIN_ROUTER_LOG"
+if TEST_IRAN_FAIL=1 run_reconcile >/dev/null 2>&1; then
+ echo 'failed Iran policy was marked reconciled' >&2; exit 1
+fi
+! grep -q '^globals.runtime_schema=' "$tmp/uci/ikev2-manager"
+run_reconcile
+[ "$(tail -1 "$TEST_DOMAIN_ROUTER_LOG")" = iran ]
+grep -Fxq 'globals.runtime_schema=4' "$tmp/uci/ikev2-manager"
 
 printf '%s\n' 'upgrade reconcile tests OK'

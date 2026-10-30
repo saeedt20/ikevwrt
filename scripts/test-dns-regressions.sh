@@ -65,13 +65,12 @@ grep -Fq "provider['bootstrap_' + protocol]" "$client"
 grep -Fq 'function dnsBootstrapProtocol(value)' "$client"
 # The tunnel resolver is a sing-box server of type "https" and offers no choice
 # it cannot honour.
-grep -Fq "{ protocol: 'doh' }" "$client"
 grep -Fq "upstream.values().join(' ')" "$client"
 grep -Fq "bootstrap.values().join(' ')" "$client"
 grep -Fq "fallback.values().join(' ')" "$client"
 grep -Fq "httpsCompat.checked ? '1' : '0'" "$client"
-grep -Fq "tunnelDnsUpstream = dnsEndpointEditor" "$client"
-grep -Fq "tunnelDnsBootstrap = dnsEndpointEditor" "$client"
+grep -Fq "https://cloudflare-dns.com/dns-query" "$client"
+grep -Fq "1.1.1.1:53 1.0.0.1:53" "$client"
 grep -Fq "tunnelUpstream.join(' ')" "$client"
 grep -Fq "tunnelBootstrap.join(' ')" "$client"
 grep -Fq 'tunnel-dns-check)' "$root/ikev2-manager-runtime/ikev2-domain-router.sh"
@@ -155,7 +154,7 @@ grep -Fq 'tunnelDnsApply.addEventListener' "$client"
 grep -Fq "writeClientInput('save')" "$client"
 grep -Fq 'if (wanted === applied)' "$client"
 # Segments are their own section and say so when the router resolver is bypassed.
-grep -Fq "common.section(_('Destination DNS segments')" "$client"
+grep -Fq "dnsDisclosure(_('Destination DNS segments')" "$client"
 grep -Fq 'routerDnsBypassNote' "$client"
 if grep -Fq "E('summary', {}, [ _('Destination DNS segments') ])" "$client"; then
 	printf '%s\n' 'destination segments are still hidden behind a disclosure' >&2
@@ -195,7 +194,6 @@ if grep -Eq 'firewall\.ikev2pbr_dns_|add_list .*src_ip=!' "$system"; then
 	exit 1
 fi
 grep -Fq 'write_set dns_bypass_ipv4 "$dns"' "$device_runtime"
-grep -Fq "printf '%s\\n' 'ipsec-in' >>\"\$sources\"" "$device_runtime"
 grep -Fq 'iifname @source_ifaces ip saddr != @dns_bypass_ipv4' "$device_runtime"
 grep -Fq 'redirect to :53 comment "ikev2-device:dns-enforce"' "$device_runtime"
 grep -Fq 'oifname @wan_ifaces ip saddr != @dns_bypass_ipv4' "$device_runtime"
@@ -246,8 +244,8 @@ case "$command:$*" in
 	'get:ikev2-manager.globals.source_include_vpn') echo 0 ;;
 	'get:ikev2-manager.server.enabled') echo 0 ;;
 	'get:ikev2-manager.client.enabled') echo 1 ;;
-	'get:ikev2-manager.client.tunnel_dns_upstream') echo 'https://dns.google/dns-query https://dns.cloudflare.com/dns-query' ;;
-	'get:ikev2-manager.client.tunnel_dns_bootstrap') echo '8.8.8.8:53 8.8.4.4:53 1.1.1.1:53 1.0.0.1:53' ;;
+	'get:ikev2-manager.client.tunnel_dns_upstream') echo 'https://cloudflare-dns.com/dns-query' ;;
+	'get:ikev2-manager.client.tunnel_dns_bootstrap') echo '1.1.1.1:53 1.0.0.1:53' ;;
 	'get:ikev2-manager.dns.managed') echo 1 ;;
 	'get:ikev2-manager.dnsseg_national.enabled') echo 1 ;;
 	'get:ikev2-manager.dnsseg_national.https_compat') echo 1 ;;
@@ -285,6 +283,30 @@ jq -e . "$tmp/domain-router.json" >/dev/null
 [ -z "${IKEV2_TEST_SING_BOX:-}" ] ||
 	"$IKEV2_TEST_SING_BOX" check -c "$tmp/domain-router.json"
 
+# The real packaged snapshot must render with no IP ranges. Keep it before
+# later outage fixtures replace the renderer/probe helpers.
+cp "$tmp/bin/uci" "$tmp/bin/uci.without-iran"
+sed '/case "$command:$\*" in/a\
+\t'get:ikev2-manager.domains.iran_direct') echo 1 ;;' "$tmp/bin/uci.without-iran" >"$tmp/bin/uci"
+mkdir -p "$tmp/iran"
+cp "$root/luci-ikev2-domains/iran/domains.lst" "$tmp/iran/iran-domains.txt"
+: >"$tmp/iran/iran-cidrs.txt"
+PATH="$tmp/bin:$PATH" \
+IKEV2_RUNTIME_LIB_DIR="$root/ikev2-manager-runtime/lib" \
+IKEV2_DOMAIN_FILE="$tmp/domains.txt" \
+IKEV2_DOMAIN_CONFIG="$tmp/iran-router.json" \
+IKEV2_DOMAIN_RULESET="$tmp/iran-vpn-rules.json" \
+IKEV2_IRAN_RULESET="$tmp/iran-rules.json" \
+IKEV2_IRAN_DIR="$tmp/iran" \
+IKEV2_DOMAIN_WORK_DIR="$tmp/work" \
+IKEV2_TUNNEL_DNS_STATE="$tmp/tunnel-dns.state" \
+ sh "$root/ikev2-manager-runtime/ikev2-domain-router.sh" render
+jq -e '.rules[0].domain_suffix | length == 57559' "$tmp/iran-rules.json" >/dev/null
+jq -e '.rules[0].ip_cidr == []' "$tmp/iran-rules.json" >/dev/null
+jq -e '[.dns.rules[] | select(.rule_set == ["iran-direct"])][0].server == "upstream"' "$tmp/iran-router.json" >/dev/null
+[ -z "${IKEV2_TEST_SING_BOX:-}" ] || "$IKEV2_TEST_SING_BOX" check -c "$tmp/iran-router.json"
+mv "$tmp/bin/uci.without-iran" "$tmp/bin/uci"
+
 # A DNS transaction captures an independently verified last-known-good runtime.
 # Corrupting either saved file must make the fallback reject the snapshot before
 # it can replace the active configuration.
@@ -321,12 +343,12 @@ jq -e '
 	.dns.cache_capacity == 8192 and
 	(.dns.strategy == null) and
 	([.dns.servers[] | select(.tag == "ikev2-bootstrap")] ==
-	 [{"type":"udp","tag":"ikev2-bootstrap","server":"8.8.8.8",
+	 [{"type":"udp","tag":"ikev2-bootstrap","server":"1.1.1.1",
 	   "server_port":53,"bind_interface":"ipsec-out"}]) and
 	([.dns.servers[] | select(.tag == "ikev2-upstream")] ==
-	 [{"type":"https","tag":"ikev2-upstream","server":"dns.google",
+	 [{"type":"https","tag":"ikev2-upstream","server":"cloudflare-dns.com",
 	   "server_port":443,"path":"/dns-query",
-	   "tls":{"enabled":true,"server_name":"dns.google"},
+	   "tls":{"enabled":true,"server_name":"cloudflare-dns.com"},
 	   "bind_interface":"ipsec-out",
 	   "domain_resolver":{"server":"ikev2-bootstrap","strategy":"ipv4_only"},
 	   "connect_timeout":"5s"}]) and
@@ -378,12 +400,12 @@ grep -A4 -F '"inbound": [ "tproxy-router-in" ]' "$tmp/domain-router.json" |
 # A healthy fallback selected by the runtime state must survive a rules rebuild;
 # changing the configured ordered list invalidates this state in production.
 cat >"$tmp/tunnel-dns.state" <<'EOF'
-selected=https://dns.cloudflare.com/dns-query
+selected=https://cloudflare-dns.com/dns-query
 failures=0
 bootstrap=1.1.1.1:53
 candidate=0
-configured=https://dns.google/dns-query https://dns.cloudflare.com/dns-query
-configured_bootstrap=8.8.8.8:53 8.8.4.4:53 1.1.1.1:53 1.0.0.1:53
+configured=https://cloudflare-dns.com/dns-query
+configured_bootstrap=1.1.1.1:53 1.0.0.1:53
 EOF
 PATH="$tmp/bin:$PATH" \
 IKEV2_RUNTIME_LIB_DIR="$root/ikev2-manager-runtime/lib" \
@@ -394,114 +416,55 @@ IKEV2_DOMAIN_WORK_DIR="$tmp/work" \
 IKEV2_TUNNEL_DNS_STATE="$tmp/tunnel-dns.state" \
 	sh "$root/ikev2-manager-runtime/ikev2-domain-router.sh" render
 jq -e '(.dns.servers[] | select(.tag == "ikev2-upstream") |
-	.server == "dns.cloudflare.com" and .tls.server_name == "dns.cloudflare.com")' \
+	.server == "cloudflare-dns.com" and .tls.server_name == "cloudflare-dns.com")' \
 	"$tmp/domain-router.json" >/dev/null
 jq -e '(.dns.servers[] | select(.tag == "ikev2-bootstrap") |
 	.server == "1.1.1.1" and .server_port == 53 and .bind_interface == "ipsec-out")' \
 	"$tmp/domain-router.json" >/dev/null
 
-# A total resolver outage checks the active endpoint and only one alternate per
-# health iteration. This bounds watcher latency and advances a persistent
-# cursor instead of rescanning the first failed fallback forever.
+# A Cloudflare outage cannot switch to a different provider, including when
+# old state files still name Google. Probe both allowed bootstrap addresses.
 mkdir -p "$tmp/probe-bin"
 cp "$tmp/bin/uci" "$tmp/probe-bin/uci"
-cat >"$tmp/probe-bin/ip" <<'EOF'
+cat >"$tmp/probe-bin/ip" <<'PROBE'
 #!/bin/sh
 exit 0
-EOF
-cat >"$tmp/probe-bin/curl" <<'EOF'
+PROBE
+cat >"$tmp/probe-bin/curl" <<'PROBE'
 #!/bin/sh
-printf 'attempt\n' >>"$IKEV2_TEST_CURL_LOG"
+printf '%s\n' "$*" >>"$IKEV2_TEST_CURL_LOG"
 exit 1
-EOF
-# Exercise failover separately from the real DNS query worker, whose config,
-# response and cleanup are covered by test-audit-regressions.py.
+PROBE
 python3 - "$root/ikev2-manager-runtime/ikev2-domain-router.sh" "$tmp/probe-helper" <<'PYCODE'
 import sys
 from pathlib import Path
 s=Path(sys.argv[1]).read_text()
-a=s.index('tunnel_dns_query() (')
-b=s.index('\nprobe_tunnel_dns()', a)
+a=s.index('tunnel_dns_query() ('); b=s.index('\nprobe_tunnel_dns()',a)
 s=s[:a]+"""tunnel_dns_query() {
-    curl "$1"
+    curl "$1" "$2"
 }
 """+s[b:]
 Path(sys.argv[2]).write_text(s)
 PYCODE
 chmod 755 "$tmp/probe-bin"/*
-cat >"$tmp/tunnel-dns.state" <<'EOF'
+cat >"$tmp/tunnel-dns.state" <<'STATE'
 selected=https://dns.google/dns-query
 failures=1
 bootstrap=8.8.8.8:53
-candidate=0
-configured=https://dns.google/dns-query https://dns.cloudflare.com/dns-query
-configured_bootstrap=8.8.8.8:53 8.8.4.4:53 1.1.1.1:53 1.0.0.1:53
-EOF
+configured=https://dns.google/dns-query
+STATE
 : >"$tmp/curl.log"
 PATH="$tmp/probe-bin:$PATH" \
 IKEV2_TEST_CURL_LOG="$tmp/curl.log" \
 IKEV2_RUNTIME_LIB_DIR="$root/ikev2-manager-runtime/lib" \
 IKEV2_DOMAIN_LOCK="$tmp/probe-domain.lock" \
 IKEV2_TUNNEL_DNS_STATE="$tmp/tunnel-dns.state" \
-	sh "$tmp/probe-helper" tunnel-dns-check || true
-grep -Fxq 'selected=https://dns.google/dns-query' "$tmp/tunnel-dns.state"
-grep -Fxq 'failures=2' "$tmp/tunnel-dns.state"
-grep -Fxq 'candidate=1' "$tmp/tunnel-dns.state"
-[ "$(wc -l <"$tmp/curl.log" | tr -d ' ')" -eq 8 ]
-
-# A resolver-specific alternate success is not enough to restart sing-box when
-# unrelated HTTPS traffic cannot cross the tunnel. This is a tunnel outage, not
-# a reason to change DNS provider.
-cat >"$tmp/probe-bin/curl" <<'EOF'
-#!/bin/sh
-printf '%s\n' "$*" >>"$IKEV2_TEST_CURL_LOG"
-case "$*" in *dns.cloudflare.com/dns-query*) exit 0 ;; *) exit 1 ;; esac
-EOF
-chmod 755 "$tmp/probe-bin/curl"
-cat >"$tmp/tunnel-dns.state" <<'EOF'
-selected=https://dns.google/dns-query
-failures=1
-bootstrap=8.8.8.8:53
-candidate=0
-configured=https://dns.google/dns-query https://dns.cloudflare.com/dns-query
-configured_bootstrap=8.8.8.8:53 8.8.4.4:53 1.1.1.1:53 1.0.0.1:53
-EOF
-: >"$tmp/curl.log"
-PATH="$tmp/probe-bin:$PATH" \
-IKEV2_TEST_CURL_LOG="$tmp/curl.log" \
-IKEV2_RUNTIME_LIB_DIR="$root/ikev2-manager-runtime/lib" \
-IKEV2_DOMAIN_LOCK="$tmp/probe-domain.lock" \
-IKEV2_TUNNEL_DNS_STATE="$tmp/tunnel-dns.state" \
-	sh "$tmp/probe-helper" tunnel-dns-check || true
-grep -Fxq 'selected=https://dns.google/dns-query' "$tmp/tunnel-dns.state"
-grep -Fxq 'failures=2' "$tmp/tunnel-dns.state"
-grep -Fq 'checkip.amazonaws.com' "$tmp/curl.log"
-
-# A recently abandoned endpoint needs stronger evidence before switching back,
-# preventing alternating transient successes from repeatedly restarting active
-# proxied connections.
-now="$(date +%s)"
-cat >"$tmp/tunnel-dns.state" <<EOF
-selected=https://dns.google/dns-query
-failures=1
-bootstrap=8.8.8.8:53
-candidate=0
-switched_at=$now
-previous=https://dns.cloudflare.com/dns-query
-configured=https://dns.google/dns-query https://dns.cloudflare.com/dns-query
-configured_bootstrap=8.8.8.8:53 8.8.4.4:53 1.1.1.1:53 1.0.0.1:53
-EOF
-: >"$tmp/curl.log"
-PATH="$tmp/probe-bin:$PATH" \
-IKEV2_TEST_CURL_LOG="$tmp/curl.log" \
-IKEV2_RUNTIME_LIB_DIR="$root/ikev2-manager-runtime/lib" \
-IKEV2_DOMAIN_LOCK="$tmp/probe-domain.lock" \
-IKEV2_TUNNEL_DNS_STATE="$tmp/tunnel-dns.state" \
-	sh "$tmp/probe-helper" tunnel-dns-check
-grep -Fxq 'selected=https://dns.google/dns-query' "$tmp/tunnel-dns.state"
-grep -Fxq 'failures=2' "$tmp/tunnel-dns.state"
-if grep -Fq 'dns.cloudflare.com/dns-query' "$tmp/curl.log"; then
-	printf '%s\n' 'tunnel DNS cooldown probed the previous endpoint too early' >&2
+	sh "$tmp/probe-helper" tunnel-dns-check && { echo 'failed Cloudflare probe reported healthy' >&2; exit 1; }
+grep -Fxq 'selected=https://cloudflare-dns.com/dns-query' "$tmp/tunnel-dns.state"
+grep -Fxq 'failures=1' "$tmp/tunnel-dns.state"
+[ "$(wc -l <"$tmp/curl.log" | tr -d ' ')" -eq 2 ]
+if grep -Eq 'google|8\.8\.8\.8|8\.8\.4\.4' "$tmp/curl.log"; then
+	echo 'Tunnel DNS used a retired resolver' >&2
 	exit 1
 fi
 grep -Fq 'bounded_nslookup openwrt.org "$address"' \

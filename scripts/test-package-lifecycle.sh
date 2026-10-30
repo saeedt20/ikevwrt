@@ -15,7 +15,7 @@ grep -Fq '[ "$${PKG_UPGRADE:-0}" = 1 ] && exit 0' "$makefile"
 grep -Fq 'upgrade) exit 0 ;;' "$makefile"
 grep -Fq 'rm -f /tmp/ikev2-manager-dhcp.before-deps' "$makefile"
 grep -Fq 'rm -rf /tmp/ikev2-manager-dns-packages' "$makefile"
-grep -Fq '/www/luci-static/resources/view/status/include/06_ikev2-manager.js' \
+grep -Fq '/www/luci-static/resources/view/status/include/06_ikev2-manager-v2.js' \
 	"$makefile" "$root/scripts/stage-package.sh"
 grep -Fq '/etc/init.d/ikev2-dns-segments' \
 	"$makefile" "$root/scripts/stage-package.sh"
@@ -49,8 +49,8 @@ for packaging in "$makefile" "$root/scripts/stage-package.sh"; do
 		printf '%s\n' "package postinst does not reconcile the installed runtime: $packaging" >&2
 		exit 1
 	}
-	grep -Fq '_upgrade-server-profile' "$packaging" || {
-		printf '%s\n' "package postinst does not refresh generated inbound config: $packaging" >&2
+	grep -Fq 'ikev2-client-migrate' "$packaging" || {
+		printf '%s\n' "package postinst does not migrate retired inbound state: $packaging" >&2
 		exit 1
 	}
 done
@@ -58,7 +58,6 @@ done
 for packaging in "$makefile" "$root/scripts/stage-package.sh"; do
 	postinst="$(sed -n '/runtime-reconcile begin/,/runtime-reconcile end/p' "$packaging")"
 	printf '%s\n' "$postinst" | grep -Fq '_upgrade-reconcile'
-	printf '%s\n' "$postinst" | grep -Fq '_upgrade-server-profile'
 	if printf '%s\n' "$postinst" | sed '/^[[:space:]]*#/d' |
 		grep -Eq '/etc/init\.d|fw4[[:space:]]|[[:space:]]restart([[:space:]]|$)'; then
 		printf '%s\n' "runtime reconciliation contains a disruptive service action: $packaging" >&2

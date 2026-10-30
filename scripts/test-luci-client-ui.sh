@@ -199,16 +199,58 @@ if (!page || !page.children || !page.children.length)
 
 const source = fs.readFileSync(path.join(root, 'luci-ikev2-manager', 'client.js'), 'utf8');
 
-// The tunnel DNS block applies on its own, and destination segments are their
-// own section rather than a disclosure inside the router resolver.
-if (source.indexOf("common.section(_('Destination DNS segments')") < 0)
-	fail('destination segments are not their own section');
-if (/E\('details'[^\n]*\n\s*E\('summary', \{\}, \[ _\('Destination DNS segments'\)/.test(source))
-	fail('destination segments are still hidden behind a disclosure');
+// Each DNS group keeps its own controls and status when collapsed.
+if (source.indexOf("dnsDisclosure(_('Destination DNS segments')") < 0 ||
+    source.indexOf("dnsDisclosure(_('Router DNS upstream')") < 0)
+ fail('router and destination DNS must have separate disclosures');
 if (source.indexOf('tunnelDnsApply.addEventListener') < 0)
 	fail('tunnel DNS has no apply of its own');
 if (source.indexOf('routerDnsBypassNote') < 0)
 	fail('router DNS section does not report being bypassed');
+
+// Switching authentication hides the whole field, including its label.
+function walkFields(node, result) {
+ if (!node || typeof node !== 'object') return;
+ if (node.attrs && node.attrs['data-field']) result[node.attrs['data-field']] = node;
+ (node.children || []).forEach(child => walkFields(child, result));
+}
+const fields = {};
+walkFields(page, fields);
+const auth = fields.authentication.children[1];
+for (const method of ['eap-mschapv2', 'pubkey', 'eap-tls']) {
+ auth.value = method; auth.listeners.change();
+ if ((fields.certificate.style.display === 'none') !== (method === 'eap-mschapv2') ||
+     (fields.key.style.display === 'none') !== (method === 'eap-mschapv2') ||
+     (fields.password.style.display === 'none') !== (method !== 'eap-mschapv2') ||
+     (fields.username.style.display === 'none') !== (method === 'pubkey'))
+  fail('authentication left irrelevant fields or labels visible: ' + method);
+}
+auth.value = 'eap-mschapv2'; auth.listeners.change();
+for (const [name, field] of Object.entries(fields)) {
+ const control = name === 'certificate' || name === 'key' ? field.children[1].children[0] : field.children[1];
+ if (!control.id || field.children[0].htmlFor !== control.id)
+  fail('connection field lacks a label association: ' + name);
+}
+const childStart = source.indexOf('function installedOutboundChild(');
+const childEnd = source.indexOf('function connectionField(', childStart);
+const checkChild = new Function('sa', source.slice(childStart, childEnd) + '\nreturn installedOutboundChild(sa);');
+for (const state of ['INSTALLED', 'REKEYING', 'INSTALLING']) {
+ const child = checkChild({state:'ESTABLISHED', 'child-sas':{current:{name:'proxy4',state}}});
+ if (Boolean(child) !== (state === 'INSTALLED')) fail('incorrect live connection state: ' + state);
+}
+if (checkChild({state:'CONNECTING','child-sas':{}})) fail('connecting SA reported as connected');
+
+// Custom configuration must not hide the actual live connection state.
+const liveData = data.slice(); liveData.ready = true;
+liveData[2] = {stdout:'1'};
+liveData[1] = {stdout:JSON.stringify({data:[{'proxy-out':{state:'ESTABLISHED',established:900,'child-sas':{proxy4:{name:'proxy4',state:'INSTALLED'}}}}]})};
+const livePage = view.render(liveData);
+function hasText(node, text) {
+ if (typeof node === 'string') return node === text;
+ return Boolean(node && typeof node === 'object' &&
+  (node.textContent === text || (node.children || []).some(child => hasText(child, text))));
+}
+if (!hasText(livePage, 'Connected')) fail('custom mode obscures the live connection status');
 
 // Every literal bootstrap preset must satisfy the rule the runtime enforces:
 // a bare IPv4 authority, or an encrypted endpoint whose host is one. A preset
@@ -276,10 +318,9 @@ endpointRows.forEach(function(row) {
 		fail('an endpoint row rendered without its editable field');
 	rowShapes[String(selects.length)] = true;
 });
-// Both shapes must exist: a group that fixes its protocol and one that lets
-// every row choose. A single shape means one of them stopped rendering.
-if (!rowShapes['1'] || !rowShapes['2'])
-	fail('endpoint rows all render the same shape');
+// Router DNS and segment rows remain editable; tunnel DNS is fixed.
+if (source.indexOf("E('code', {}, [ 'https://cloudflare-dns.com/dns-query' ])") < 0)
+	fail('Tunnel DNS is not visibly fixed to Cloudflare');
 // The fallback line under a segment must not repeat a list the fields above it
 // already show; it exists to spell out what an empty field inherits.
 if (source.indexOf('var fallbackEffective = !inherits') < 0)
@@ -443,81 +484,36 @@ if (/lines\.push\('selected=' \+ st\.selected\)/.test(editorSource))
 	fail('the policy page still dumps raw status keys');
 if (editorSource.indexOf("common.setPill(policyPill") < 0)
 	fail('the policy page no longer reports its state at all');
-// The list sources section reads the helper's ledger and starts a detached
-// forced refresh; an empty selection must render too.
-if (editorSource.indexOf("fs.exec(communityHelper, [ 'sources' ])") < 0)
-	fail('the policy page does not read list sources');
-if (editorSource.indexOf("startArgs: [ 'refresh-schedule', 'force' ]") < 0)
-	fail('the policy page cannot start a list update');
-try {
-	editor.render([ '', '', '', { code: 0, stdout: '' }, '', { code: 0, stdout: '' }, '',
-		{ code: 0, stdout: 'now=1789300000\nrefresh_due=1' } ]);
-} catch (error) {
-	fail('editor.js render() threw with no selected services: ' + (error && error.stack ? error.stack : error));
-}
-
-// The inbound server page carries the most controls of any view, so its render
-// is exercised too - a restructured section there fails the same silent way.
-const settingsView = loadModule('settings.js', common);
-if (typeof settingsView.render !== 'function')
-	fail('settings.js does not return a view with render()');
-const serverGet = [
-	'enabled=1', 'identity=vpn.example.com', 'pool4=10.253.10.0/24',
-	'gateway4=10.253.10.1', 'dns4=10.253.10.1', 'mtu=1400', 'mobike=1',
-	'fragmentation=1', 'dpd=30', 'ike_rekey=4h', 'child_rekey=1h'
-].join('\n');
-const serverAccess = [
-	'local_ts=0.0.0.0/0', 'allow_internet=1', 'allow_lan=1', 'allow_router=1',
-	'router_ports=', 'lan_zones=lan', 'firewall_zone=ikev2', 'outbound_zone=wan'
-].join('\n');
-const settingsData = [
-	{ stdout: serverGet }, { stdout: serverAccess }, { stdout: '0' },
-	{ stdout: '' }, { stdout: 'identities=vpn.example.com' },
-	{ stdout: 'lan=LAN\nwan=WAN' }, { stdout: 'lan=LAN\nwan=WAN' },
-	{ stdout: 'wan_interface=wan' }
-];
-settingsData.ready = true;
-let settingsPage;
-try {
-	settingsPage = settingsView.render(settingsData);
-} catch (error) {
-	fail('settings.js render() threw: ' + (error && error.stack ? error.stack : error));
-}
-if (!settingsPage || !settingsPage.children || !settingsPage.children.length)
-	fail('settings.js render() produced an empty page');
-
-// Advanced options are reached from a control in the header of the section
-// they qualify, not from a disclosure block appended under its controls.
-const settingsSource = fs.readFileSync(path.join(root, 'luci-ikev2-manager', 'settings.js'), 'utf8');
-[ [ 'client.js', source ], [ 'settings.js', settingsSource ] ].forEach(function(entry) {
-	if (entry[1].indexOf("'class': 'ikev2-advanced' }") >= 0)
-		fail(entry[0] + ' still appends an advanced disclosure block');
-	if (entry[1].indexOf('common.advancedPanel(') < 0)
-		fail(entry[0] + ' has no advanced panel opened from a section header');
-});
-// Staging issues certificates clients reject, so it is an advanced option and
-// is rendered with the same toggle row as every other switch on the page - not
-// as a lone two-column grid whose switch drifted out of alignment.
-if (/common\.fieldLabel\(_\('Staging'\)/.test(settingsSource))
-	fail('the ACME staging switch is back in a grid row of its own');
-if (settingsSource.indexOf("common.toggleRow(acmeStaging") < 0)
-	fail('the ACME staging switch is not a toggle row');
-if (settingsSource.indexOf('acmeAdvanced.toggle') < 0)
-	fail('the ACME panel has no advanced toggle');
-// The inbound page opened on three collapsed panels with nothing but the
-// server identity visible. Its sections are now flat, each with its own
-// advanced toggle for the parts that stay hidden.
-if (settingsSource.indexOf("E('details', { 'class': 'ikev2-disclosure' }") >= 0)
-	fail('the inbound page still nests its settings in disclosures');
-if (settingsSource.indexOf('ikev2-disclosure-stack') >= 0)
-	fail('the inbound page still stacks disclosures');
-[ 'accessPanel', 'acmePanel', 'behaviorPanel' ].forEach(function(name) {
-	if (!new RegExp('var ' + name + ' = common\\.section\\(').test(settingsSource))
-		fail(name + ' is not a flat section');
+// Hiding the panels must not remove service selections from later saves.
+if (hasText(editorPage, 'Services') || hasText(editorPage, 'List sources'))
+ fail('hidden policy panels are still mounted');
+const originalWrite = fsStub.write;
+const originalExec = fsStub.exec;
+let preservedServices = null;
+fsStub.write = function(name, value) {
+ if (name.startsWith('/tmp/ikev2-domains-input-')) {
+  if (name.endsWith('.services')) preservedServices = value;
+  return Promise.resolve();
+ }
+ return originalWrite.apply(null, arguments);
+};
+fsStub.exec = function(helper, args) {
+ if (args[0] === 'schedule') return Promise.resolve({code:0,stdout:'action_id=preserve-test\n'});
+ if (args[0] === 'status') return Promise.resolve({code:0,stdout:'action_id=preserve-test\nstate=ok\n'});
+ return originalExec(helper,args);
+};
+documentStub.querySelector = function(selector) {
+ return selector === '#ikev2-domain-list' ? {value:'example.com\n'} :
+  selector === '#ikev2-address-list' ? {value:''} : null;
+};
+// The empty-state rendering test must not replace the saved selection first.
+const preservationTest = editor.doSave({err:fail,busy(){},ok(){},warn:fail},function(){}).then(function() {
+ if (preservedServices !== 'openai\ntelegram\n') fail('Save erased hidden service selections');
+ fsStub.write = originalWrite; fsStub.exec = originalExec;
 });
 
-// The custom destination editors are sized by a class that has to outrank the
-// page-wide textarea floor, or they silently stay at that floor.
+if (source.indexOf('common.advancedPanel(') < 0)
+	fail('client connection advanced controls are missing');
 const sharedSource = fs.readFileSync(path.join(root, 'luci-ikev2-manager', 'shared.js'), 'utf8');
 if (sharedSource.indexOf('.ikev2-page .ikev2-domain-editor {') < 0)
 	fail('the domain editor height is set by a selector the textarea floor outranks');
@@ -554,7 +550,7 @@ global.FileReader = class {
 		this.onload();
 	}
 };
-Promise.all([ setupLoadTest ].concat(pickers.map(function(picker, index) {
+Promise.all([ setupLoadTest, preservationTest ].concat(pickers.map(function(picker, index) {
 	const field = picker.children[0];
 	const button = picker.children[1];
 	const chooser = picker.children[2];

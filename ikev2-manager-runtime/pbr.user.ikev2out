@@ -62,13 +62,6 @@ for ikev2_interface in $(uci -q get ikev2-manager.globals.source_interface); do
 	fi
 done
 
-if [ "$(uci -q get ikev2-manager.server.enabled)" = 1 ]; then
-	ikev2_inbound_subnet="$(/usr/libexec/ikev2-manager-system gateway-network 2>/dev/null || true)"
-	if [ -n "$ikev2_inbound_subnet" ]; then
-		ip -4 route replace "$ikev2_inbound_subnet" dev ipsec-in table "$ikev2_table_id" || return 1
-	fi
-fi
-
 if [ -s /var/run/ikev2-vip4 ] &&
 	ip link show ipsec-out 2>/dev/null | grep -q 'UP' &&
    swanctl --list-sas --ike proxy-out --raw 2>/dev/null |

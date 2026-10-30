@@ -12,9 +12,9 @@ One OpenWrt package, `luci-app-ikev2-manager`, containing three things:
 
 - **runtime** - POSIX shell helpers under `/usr/libexec`, driven by procd init
   scripts and by the LuCI pages through rpcd
-- **LuCI pages** - five views plus a status-overview widget, all built on one
+- **LuCI pages** - three views plus a status-overview widget, all built on one
   shared design system rather than stock CBI
-- **checks** - 46 scripts under `scripts/`, run as one suite by
+- **checks** - scripts under `scripts/`, run as one suite by
   `scripts/ci-check.sh`
 
 Two sibling repositories, not in this tree: `ikev2-site-link-openwrt` (the
@@ -29,18 +29,18 @@ rpcd `file exec` ACL in `luci-ikev2-manager/acl.json`.
 | helper | source | owns |
 | --- | --- | --- |
 | `ikev2-manager-system` | `ikev2-manager-runtime/ikev2-manager-system.sh` | system state, dependencies, DNS transactions, DNS segments, device policy, routing pause |
-| `ikev2-manager` | `luci-ikev2-manager/ikev2-manager.sh` | inbound server, VPN users, ACME, client profile, raw swanctl config |
+| `ikev2-manager` | `luci-ikev2-manager/ikev2-manager.sh` | outbound client, credentials, certificate uploads and raw client config |
 | `ikev2-domain-router` | `ikev2-manager-runtime/ikev2-domain-router.sh` | sing-box FakeIP engine, tunnel DNS, nftables rules |
 | `ikev2-device-routing` | `ikev2-manager-runtime/ikev2-device-routing.sh` | per-device policy marks and their nft chains |
-| `ikev2-user-policy` | `ikev2-manager-runtime/ikev2-user-policy.sh` | inbound session admission, driven by VICI events |
-| `ikev2-health` | `ikev2-manager-runtime/ikev2-health.sh` | the watcher loop: FakeIP repair, tunnel DNS failover |
+| `ikev2-client-migrate` | `ikev2-manager-runtime/ikev2-client-migrate.sh` | private legacy backup and client-only migration |
+| `ikev2-health` | `ikev2-manager-runtime/ikev2-health.sh` | the watcher loop: FakeIP repair, Cloudflare tunnel DNS health |
 | `ikev2-devices` | `luci-ikev2-domains/ikev2-devices.sh` | LAN inventory the pages read |
 | `ikev2-domains-community` | `luci-ikev2-domains/community-domains.sh` | service catalogue and destination lists |
 | `ikev2-sync-vips` | `ikev2-manager-runtime/ikev2-sync-vips.sh` | virtual IP reconciliation |
 | `ikev2-discord-voice` | `ikev2-manager-runtime/ikev2-discord-voice.sh` | Discord voice range handling |
 
 Init scripts in `ikev2-manager-runtime/*.init`: `ikev2-domain-router`,
-`ikev2-dns-segments`, `ikev2-health`, `ikev2-user-policy`, `ikev2-xfrm`.
+`ikev2-dns-segments`, `ikev2-health`, `ikev2-xfrm`.
 
 ## LuCI pages
 
@@ -49,15 +49,13 @@ carries a version suffix - see `luci-ikev2-manager/AGENTS.md` for why.
 
 | page | source | installed as |
 | --- | --- | --- |
-| Overview | `luci-ikev2-manager/setup.js` | `view/ikev2-manager/setup-v13.js` |
-| Outbound Tunnel | `luci-ikev2-manager/client.js` | `view/ikev2-manager/client-v13.js` |
-| Policy Routing | `luci-ikev2-domains/editor.js` | `view/ikev2-domains/editor-v14.js` |
-| Inbound Server | `luci-ikev2-manager/settings.js` | `view/ikev2-manager/settings-v13.js` |
-| VPN Users | `luci-ikev2-manager/users.js` | `view/ikev2-manager/users-v17.js` |
-| Status widget | `luci-ikev2-manager/status-widget.js` | `view/status/include/06_ikev2-manager.js` |
+| Overview | `luci-ikev2-manager/setup.js` | `view/ikev2-manager/setup-v15.js` |
+| Outbound Tunnel | `luci-ikev2-manager/client.js` | `view/ikev2-manager/client-v15.js` |
+| Policy Routing | `luci-ikev2-domains/editor.js` | `view/ikev2-domains/editor-v17.js` |
+| Status widget | `luci-ikev2-manager/status-widget.js` | `view/status/include/06_ikev2-manager-v2.js` |
 
 `luci-ikev2-manager/shared.js` is the English design system and
-the action lifecycle used by all of them; it installs as `shared-v21.js`.
+the action lifecycle used by all of them; it installs as `shared-v23.js`.
 `luci-ikev2-manager/menu.json` wires the pages, `acl.json` grants every helper
 call and input-file write.
 
@@ -65,7 +63,7 @@ call and input-file write.
 
 - `openwrt/files/etc/config/ikev2-manager` - packaged defaults, installed to
   `/usr/share/ikev2-manager/defaults/` and merged on install
-- UCI sections: `client`, `server`, `domains`, `dns`, `dnsseg_*` (one per DNS
+- UCI sections: `globals`, `client`, `domains`, `dns`, `dnsseg_*` (one per DNS
   segment), `device_*` (one per device override)
 
 ## Checks

@@ -454,7 +454,7 @@ grep -Fq '"$restart_helper" --wait --lock-held' \
 	"$root/luci-ikev2-domains/community-domains.sh"
 stop_body="$(sed -n '/^stop() {/,/^}/p' \
 	"$root/ikev2-manager-runtime/ikev2-xfrm.init")"
-printf '%s\n' "$stop_body" | grep -Fq 'ip link set ipsec-in down'
+printf '%s\n' "$stop_body" | grep -Fq 'ip link set ipsec-out down'
 if grep -Fq 'ip link del' "$root/ikev2-manager-runtime/ikev2-xfrm.init"; then
 	echo 'XFRM lifecycle still deletes live interfaces' >&2
 	exit 1
@@ -470,21 +470,12 @@ fi
 remove_managed_body="$(sed -n '/^remove_managed() {/,/^}/p' \
 	"$root/ikev2-manager-runtime/ikev2-manager-system.sh")"
 health_stop_line="$(printf '%s\n' "$remove_managed_body" | grep -n 'ikev2-health stop' | head -1 | cut -d: -f1)"
-user_policy_stop_line="$(printf '%s\n' "$remove_managed_body" | grep -n 'user_policy_helper.*stop' | head -1 | cut -d: -f1)"
-[ -n "$health_stop_line" ] && [ -n "$user_policy_stop_line" ] &&
-	[ "$health_stop_line" -lt "$user_policy_stop_line" ] || {
-	echo 'managed cleanup can race the health reconciler while removing runtime' >&2
-	exit 1
-}
+[ -n "$health_stop_line" ] || { echo 'managed cleanup does not stop the health loop' >&2; exit 1; }
 fw_reload_line="$(printf '%s\n' "$remove_managed_body" | grep -n 'fw4 -q reload' | head -1 | cut -d: -f1)"
 xfrm_stop_line="$(printf '%s\n' "$remove_managed_body" | grep -n 'ikev2-xfrm stop' | head -1 | cut -d: -f1)"
 [ -n "$fw_reload_line" ] && [ -n "$xfrm_stop_line" ] &&
 	[ "$fw_reload_line" -lt "$xfrm_stop_line" ] || {
 	echo 'managed cleanup still stops XFRM before removing firewall references' >&2
-	exit 1
-}
-[ -n "$user_policy_stop_line" ] && [ "$user_policy_stop_line" -gt "$xfrm_stop_line" ] || {
-	echo 'managed cleanup removes the inbound access guard while XFRM is live' >&2
 	exit 1
 }
 device_stop_line="$(printf '%s\n' "$remove_managed_body" | grep -n 'device_runtime_helper.*stop' | head -1 | cut -d: -f1)"
@@ -508,11 +499,6 @@ if grep -Fq 'strongswan-security server' \
 	echo 'inbound XFRM is still blocked by the strongSwan advisory' >&2
 	exit 1
 fi
-grep -Fq 'START=88' "$root/ikev2-manager-runtime/ikev2-user-policy.init"
-grep -Fq 'STOP=90' "$root/ikev2-manager-runtime/ikev2-user-policy.init"
-grep -Fq 'ikev2-user-policy.init' "$root/Makefile"
-grep -Fq 'sync_inbound_user_policy || die' \
-	"$root/ikev2-manager-runtime/ikev2-manager-system.sh"
 grep -Fq '[ "$(uci -q get ikev2-manager.globals.configured)" = 1 ] || return 0' \
 	"$root/ikev2-manager-runtime/pbr.user.ikev2out"
 grep -Fq 'ensure_failclosed_default 4' \
@@ -548,8 +534,6 @@ if grep -Fq '"routing_mark"' "$root/ikev2-manager-runtime/ikev2-domain-router.sh
 	echo 'FakeIP config still contains a hard-coded PBR routing mark' >&2
 	exit 1
 fi
-grep -Fq 'strongswan_eap_server_security=warn:%s-cve-2026-47895' \
-	"$root/ikev2-manager-runtime/ikev2-manager-system.sh"
 grep -Fq 'strongswan_cohort=invalid:mixed-or-missing-version' \
 	"$root/ikev2-manager-runtime/ikev2-manager-system.sh"
 grep -Fq 'runtime_install_arguments $missing' \

@@ -29,8 +29,6 @@ fi
 for consumer in \
 	luci-ikev2-manager/setup.js \
 	luci-ikev2-manager/client.js \
-	luci-ikev2-manager/settings.js \
-	luci-ikev2-manager/users.js \
 	luci-ikev2-manager/status-widget.js \
 	luci-ikev2-domains/editor.js; do
 	grep -Fq 'var _ = common.t;' "$consumer" || {
@@ -59,11 +57,6 @@ if grep -R -n --include='*.js' 'advanced-start.*encodeBase64' $files; then
 	exit 1
 fi
 grep -Fq '"/var/run/ikev2-manager-profile-*.in": [ "write" ]' "$acl"
-if grep -Fq 'Blocked — strongSwan upgrade required' \
-	'luci-ikev2-manager/settings.js'; then
-	printf '%s\n' 'inbound strongSwan advisory must not be rendered as a runtime block' >&2
-	exit 1
-fi
 grep -Fq "notice ? 'info'" 'luci-ikev2-manager/setup.js'
 grep -Fq "Reset app and remove dependencies" 'luci-ikev2-manager/setup.js'
 dns_toggle_line="$(grep -n "common.toggleRow(blockDot" 'luci-ikev2-manager/setup.js' | cut -d: -f1)"
@@ -93,11 +86,6 @@ for noisy_copy in \
 		exit 1
 	fi
 done
-grep -Fq "Allow all router ports" 'luci-ikev2-manager/settings.js'
-grep -Fq "routerPorts.disabled = !allowRouter.checked || allowAllRouterPorts.checked" \
-	'luci-ikev2-manager/settings.js'
-grep -Fq "Keep LuCI and SSH ports in this list" 'luci-ikev2-manager/settings.js'
-grep -Fq '"/usr/libexec/ikev2-devices zones": [ "exec" ]' "$acl"
 grep -Fq '"/usr/libexec/ikev2-devices clients": [ "exec" ]' "$acl"
 grep -Fq '"/usr/libexec/ikev2-manager-system device-async set-exclusions *": [ "exec" ]' "$acl"
 grep -Fq '"/usr/libexec/ikev2-manager-system device-async set-included *": [ "exec" ]' "$acl"
@@ -112,9 +100,6 @@ grep -Fq 'set-included)     cmd_set_included' \
 grep -Fq 'clear-policy)     cmd_clear_policy' \
 	'luci-ikev2-domains/ikev2-devices.sh'
 grep -Fq "common.choiceWithCustom(choices.length" 'luci-ikev2-manager/setup.js'
-grep -Fq "common.multiChoiceWithCustom(access.lan_zones" \
-	'luci-ikev2-manager/settings.js'
-grep -Fq "addressPlanPicker" 'luci-ikev2-manager/settings.js'
 grep -Fq "choiceWithCustom" 'luci-ikev2-manager/client.js'
 grep -Fq "choiceWithCustom(value.wan_interface" 'luci-ikev2-manager/setup.js'
 grep -Fq "renderDevicePolicies(data[3].stdout, data[4].stdout, data[5].stdout)" \

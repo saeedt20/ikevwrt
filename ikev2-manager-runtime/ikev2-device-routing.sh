@@ -131,10 +131,6 @@ collect_policy_ifaces() {
 		}
 		printf '%s\n' "$device" >>"$sources"
 	done
-	if [ "$(uci -q get "$config.globals.source_include_vpn" 2>/dev/null || echo 1)" = 1 ] &&
-	   [ "$(uci -q get "$config.server.enabled" 2>/dev/null || echo 0)" = 1 ]; then
-		printf '%s\n' 'ipsec-in' >>"$sources"
-	fi
 	sort -u "$sources" >"${sources}.sorted" || return 1
 	mv "${sources}.sorted" "$sources" || return 1
 	[ -s "$sources" ] || {
@@ -504,7 +500,7 @@ EOF
     type filter hook prerouting priority -152; policy accept;
 EOF
 		[ -s "$dpi" ] && write_dpi_rules "$dpi" "$dpi_mark" "$dpi_backend"
-		# Preserve admission decisions made by the earlier inbound-user chain.
+		# Preserve packets already marked for the FakeIP proxy.
 		printf '    meta mark & 0x00ff0000 == 0x00400000 return\n'
 		fakeip_policy_enabled && printf '    jump fakeip_policy\n'
 		write_route_rules "$excluded" exclude "$wan_clear" "$wan_mark"

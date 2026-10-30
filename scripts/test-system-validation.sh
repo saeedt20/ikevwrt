@@ -135,32 +135,6 @@ if TEST_FW4_RESULT=error run_system _firewall-check >/dev/null 2>&1; then
 	exit 1
 fi
 
-TEST_ZONES=''
-TEST_IN_OWNER=''
-TEST_OUT_OWNER=''
-export TEST_ZONES TEST_IN_OWNER TEST_OUT_OWNER
-run_system validate-server-zones ikev2in ikev2out
-
-TEST_ZONES='lan wan'
-export TEST_ZONES
-if run_system validate-server-zones lan ikev2out >/dev/null 2>&1; then
-	printf 'existing firewall zone name was accepted for a managed zone\n' >&2
-	exit 1
-fi
-
-TEST_ZONES='ikev2in ikev2out'
-TEST_IN_OWNER=ikev2in
-TEST_OUT_OWNER=ikev2out
-export TEST_ZONES TEST_IN_OWNER TEST_OUT_OWNER
-run_system validate-server-zones ikev2in ikev2out
-
-TEST_ZONES='ikev2in ikev2in ikev2out'
-export TEST_ZONES
-if run_system validate-server-zones ikev2in ikev2out >/dev/null 2>&1; then
-	printf 'duplicate managed firewall zone name was accepted\n' >&2
-	exit 1
-fi
-
 TEST_ZONES='lan wan'
 TEST_IN_OWNER=''
 TEST_OUT_OWNER=''

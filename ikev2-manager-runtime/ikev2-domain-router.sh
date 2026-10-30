@@ -235,16 +235,6 @@ covered_sources() {
 		printf '%s\n' "$cidrs"
 		found=1
 	done
-	if [ "$(defaultv globals source_include_vpn 1)" = 1 ] &&
-	   [ "$(defaultv server enabled 0)" = 1 ]; then
-		vpn_cidr="$(/usr/libexec/ikev2-manager-system gateway-network 2>/dev/null || true)"
-		[ -n "$vpn_cidr" ] || {
-			printf 'Inbound VPN source has no usable IPv4 subnet\n' >&2
-			return 1
-		}
-		printf '%s\n' "$vpn_cidr"
-		found=1
-	fi
 	src="$(uci -q get pbr.ikev2pbr_domains.src_addr 2>/dev/null || true)"
 	for address in $src; do
 		case "$address" in
@@ -323,13 +313,11 @@ parse_tunnel_doh() {
 }
 
 tunnel_dns_endpoints() {
-	defaultv client tunnel_dns_upstream \
-		'https://dns.google/dns-query https://dns.cloudflare.com/dns-query'
+	printf '%s\n' 'https://cloudflare-dns.com/dns-query'
 }
 
 tunnel_dns_bootstrap() {
-	defaultv client tunnel_dns_bootstrap \
-		'8.8.8.8:53 8.8.4.4:53 1.1.1.1:53 1.0.0.1:53'
+	printf '%s\n' '1.1.1.1:53 1.0.0.1:53'
 }
 
 validate_tunnel_dns() {
@@ -420,7 +408,6 @@ local_devices() {
 					jsonfilter -e '@.device' 2>/dev/null || true)"
 			[ -n "$device" ] && printf '%s\n' "$device"
 		done
-	[ "$(defaultv server enabled 0)" = 1 ] && printf 'ipsec-in\n'
 }
 
 render_ruleset() {
@@ -434,9 +421,9 @@ render_ruleset() {
 	chmod 600 "${ruleset_file}.new"
 	mv "${ruleset_file}.new" "$ruleset_file"
 	if [ "$(defaultv domains iran_direct 0)" = 1 ]; then
-		iran_domains='/etc/ikev2-manager/iran-domains.txt'
-		iran_cidrs='/etc/ikev2-manager/iran-cidrs.txt'
-		[ -s "$iran_domains" ] && [ -s "$iran_cidrs" ] ||
+		iran_domains="${IKEV2_IRAN_DIR:-/etc/ikev2-manager}/iran-domains.txt"
+		iran_cidrs="${IKEV2_IRAN_DIR:-/etc/ikev2-manager}/iran-cidrs.txt"
+		[ -s "$iran_domains" ] && [ -f "$iran_cidrs" ] ||
 			die 'Iran direct lists are missing'
 		iran_domain_array="$(json_array_file "$iran_domains")"
 		iran_cidr_array="$(json_array_file "$iran_cidrs")"
@@ -1257,18 +1244,6 @@ probe_tunnel_dns() {
 	return 1
 }
 
-probe_tunnel_data_plane() {
-	# An alternate resolver can answer during a generally unstable tunnel.  A
-	# provider switch is disruptive because sing-box must reload, so first prove
-	# that unrelated HTTPS traffic also crosses the tunnel successfully.
-	curl -4fsS --interface ipsec-out --connect-timeout 2 --max-time 3 \
-		https://checkip.amazonaws.com 2>/dev/null |
-		grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' && return 0
-	curl -4fsS --interface ipsec-out --connect-timeout 2 --max-time 3 \
-		https://1.1.1.1/cdn-cgi/trace 2>/dev/null |
-		grep -q '^ip=[0-9]'
-}
-
 rendered_tunnel_dns() {
 	[ -s "$config_file" ] || return 1
 	awk '/"tag": "ikev2-bootstrap"/ { bootstrap=1; next }
@@ -1281,8 +1256,7 @@ rendered_tunnel_dns() {
 }
 
 tunnel_dns_check() {
-	local selected failures endpoint old_state rendered rendered_endpoint state_selected state_configured parsed candidate index bootstrap attempted
-	local switched_at previous now switch_threshold switch_target_snapshot switch_previous_snapshot switch_failures_snapshot switch_bootstrap_snapshot
+	local selected failures old_state rendered rendered_endpoint state_selected state_configured parsed bootstrap
 	init_config
 	[ "$(defaultv domains engine nftset)" = fakeip ] || return 0
 	[ "$(defaultv client enabled 0)" = 1 ] || return 0
@@ -1316,50 +1290,8 @@ tunnel_dns_check() {
 	fi
 	failures=$((failures + 1))
 	bootstrap="$(selected_tunnel_bootstrap)"
-	candidate="$(sed -n 's/^candidate=//p' "$tunnel_dns_state" 2>/dev/null | tail -n1)"
-	case "$candidate" in '' | *[!0-9]*) candidate=0 ;; esac
-	switched_at="$(sed -n 's/^switched_at=//p' "$tunnel_dns_state" 2>/dev/null | tail -n1)"
-	case "$switched_at" in '' | *[!0-9]*) switched_at=0 ;; esac
-	previous="$(sed -n 's/^previous=//p' "$tunnel_dns_state" 2>/dev/null | tail -n1)"
-	save_tunnel_dns_state "$selected" "$failures" "$bootstrap" "$candidate"
-	[ "$failures" -ge 2 ] || return 0
-	index=0
-	attempted=0
-	for endpoint in $(tunnel_dns_endpoints); do
-		[ "$endpoint" = "$selected" ] && continue
-		[ "$index" -ge "$candidate" ] || { index=$((index + 1)); continue; }
-		switch_threshold=2
-		now="$(date +%s)"
-		if [ "$endpoint" = "$previous" ] && [ $((now - switched_at)) -lt 600 ]; then
-			switch_threshold=4
-		fi
-		[ "$failures" -ge "$switch_threshold" ] || return 0
-		attempted=1
-		if ! probe_tunnel_dns "$endpoint"; then
-			save_tunnel_dns_state "$selected" "$failures" "$bootstrap" "$((index + 1))"
-			return 1
-		fi
-		probe_tunnel_data_plane || return 1
-		old_state="$(cat "$tunnel_dns_state" 2>/dev/null || true)"
-		switch_target_snapshot="$endpoint"
-		switch_previous_snapshot="$selected"
-		switch_failures_snapshot="$failures"
-		switch_bootstrap_snapshot="$probe_bootstrap"
-		save_tunnel_dns_state "$switch_target_snapshot" 0 \
-			"$switch_bootstrap_snapshot" 0 "$now" "$switch_previous_snapshot"
-		if refresh; then
-			logger -t ikev2-domain-router "tunnel DNS switched endpoint=$switch_target_snapshot previous=$switch_previous_snapshot failures=$switch_failures_snapshot" 2>/dev/null || true
-			write_status active "Tunnel DNS switched to $switch_target_snapshot"
-			return 0
-		fi
-		printf '%s\n' "$old_state" >"$tunnel_dns_state"
-		return 1
-	done
-	# Try only one alternate endpoint per health iteration. Persist the cursor so
-	# later entries are still reached without turning the watcher into a long
-	# blocking scan when several providers are unavailable.
-	[ "$attempted" = 1 ] || candidate=0
-	save_tunnel_dns_state "$selected" "$failures" "$bootstrap" "$candidate"
+	# Cloudflare is the only provider; an outage never selects a different one.
+	save_tunnel_dns_state "$selected" "$failures" "$bootstrap" 0
 	return 1
 }
 

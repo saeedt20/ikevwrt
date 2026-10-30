@@ -17,7 +17,7 @@ real-router validation. Never install an APK built for one target on another.
 
 The default build target is Xiaomi Redmi Router AX6S:
 
-- OpenWrt `25.12.5`;
+- OpenWrt `25.12.6`;
 - `mediatek/mt7622`;
 - `aarch64_cortex-a53` (ARMv8);
 - Xiaomi Redmi Router AX6S running official OpenWrt.
@@ -49,10 +49,10 @@ public release or claim compatibility.
 The same operation is available to a maintainer on a Linux build host:
 
 ```sh
-./scripts/build-apk-target.sh 25.12.5 mediatek/mt7622
+./scripts/build-apk-target.sh 25.12.6 mediatek/mt7622
 
 # ARMv8 Cortex-A53 preset (MediaTek Filogic)
-sh ./scripts/build-apk-aarch64-cortex-a53.sh 25.12.5
+sh ./scripts/build-apk-aarch64-cortex-a53.sh 25.12.6
 ```
 
 Use `ubus call system board` and `/etc/openwrt_release` on the target router;
@@ -66,7 +66,7 @@ APK and its SHA-256 checksum from the GitHub Release, copy it to the router,
 and install it explicitly:
 
 ```sh
-apk add --allow-untrusted /tmp/luci-app-ikev2-manager-1.13.3.apk
+apk add --allow-untrusted /tmp/luci-app-ikev2-manager-1.13.5.apk
 ```
 
 No signing key, package feed or system-wide `apk upgrade` is required. To

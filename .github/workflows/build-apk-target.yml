@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       openwrt_release:
-        description: Official OpenWrt 25.12 release, for example 25.12.5
+        description: Official OpenWrt 25.12 release, for example 25.12.6
         required: true
-        default: "25.12.5"
+        default: "25.12.6"
         type: string
       target:
         description: Exact target/subtarget, for example mediatek/mt7622

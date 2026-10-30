@@ -9,7 +9,7 @@ const root = process.argv[2];
 const files = fs.readdirSync(path.join(root, 'luci-ikev2-manager'))
 	.filter(name => /\.(js|json)$/.test(name))
 	.map(name => 'luci-ikev2-manager/' + name)
-	.concat([ 'luci-ikev2-domains/editor.js', 'windows-profile-installer/Program.cs' ]);
+	.concat([ 'luci-ikev2-domains/editor.js' ]);
 for (const file of files) {
 	const source = fs.readFileSync(path.join(root, file), 'utf8');
 	if (/[\p{Script=Arabic}\p{Script=Cyrillic}]/u.test(source))

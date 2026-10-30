@@ -4,13 +4,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 
 A LuCI application that connects your OpenWrt router to an IKEv2 server,
-decides which traffic goes through the tunnel, and can optionally turn the
-router into an IKEv2 server for your own phones and laptops.
+and decides which traffic goes through the tunnel. Version 1.13.5 is client-only.
+Development builds of this release were smoke-tested on AX6S.
 
-Every setting is stored in UCI, and the application does not touch strongSwan,
-PBR, sing-box, dnsmasq or nftables until you explicitly allow it.
+Every setting is stored in UCI, and fresh installations wait for you to enable managed mode.
+Upgrading an already managed installation also migrates the active policy.
 
-**Hardware testing: Xiaomi Redmi Router AX6S only**, on OpenWrt 25.12.5 (`mediatek/mt7622`, `aarch64_cortex-a53`). Other targets and IPK builds are unverified.
+**Hardware testing: Xiaomi Redmi Router AX6S only**, on OpenWrt 25.12.6 (`mediatek/mt7622`, `aarch64_cortex-a53`). Other targets and IPK builds are unverified.
 
 ## Contents
 
@@ -131,13 +131,13 @@ the checks are green.
 | --- | --- | --- |
 | **Install dependencies** | Installs the missing VPN, DNS and PBR packages. | Replacing `dnsmasq-full` may restart DNS/DHCP briefly. |
 | **Tunnel routing: Pause/Resume** | Temporarily sends selected destinations out through WAN instead of the VPN, without deleting anything. | While paused there is no fail-closed guarantee. Use it for troubleshooting only. |
-| **WAN network** | The router's main internet interface. | Must be the real uplink. The inbound server also uses UDP 500 and 4500 on it. |
+| **WAN network** | The router's main internet interface. | Must be the real uplink. It must reach your VPN provider. |
 | **Protected networks** | The LAN/VLAN networks the VPN policy applies to. | Never select WAN or an external management network. |
 | **Let the app manage the router** | Hands ownership of route, PBR, DNS and firewall to the application. | Turn it off before removing the package or reworking the network. |
 | **Device rules** | Lists LAN devices and their exceptions. | Each exception can bypass PBR, DNS interception and DPI separately. |
 | **Redirect plain DNS** | Sends port 53 from protected devices to the router's resolver. | Needed for reliable domain routing. |
 | **Block DNS-over-TLS** | Blocks outbound port 853 to WAN. | Stops clients bypassing domain classification, but affects some of them. |
-| **Reset application** | Prepares the package for removal and reverts the managed state. | Settings, users and secrets are erased. Back up first. |
+| **Reset application** | Prepares the package for removal and reverts the managed state. | Settings and secrets are erased. Back up first. |
 
 **Runtime dependencies** is status only. If strongSwan versions are installed
 inconsistently, the application deliberately refuses to mix them; fix the
@@ -145,8 +145,7 @@ firmware and official feeds first.
 
 ### Outbound Tunnel tab
 
-Connects **your router to a VPN server**. Do not confuse it with the Inbound
-Server tab.
+Connects **your router to a VPN provider**, such as Windscribe. Use the provider’s IKEv2 connection details.
 
 | Option | Behaviour | Recommendation |
 | --- | --- | --- |
@@ -161,9 +160,10 @@ Server tab.
 | **Custom strongSwan config** | Replaces the generated profile with raw configuration. | Expert only. The normal form has no runtime effect until you reset to generated. |
 | **Connect / Disconnect** | Brings the outbound SA up or down. | Connect validates first and reports the actual cause of a failure. |
 
-**Tunnel DNS** resolves VPN destinations from inside the tunnel; the first
-endpoint is primary and the rest are ordered fallbacks. Bootstrap servers must
-be valid IPv4 addresses on port 53.
+**Tunnel DNS** uses only Cloudflare DoH: `https://cloudflare-dns.com/dns-query`,
+with bootstrap resolvers `1.1.1.1:53` and `1.0.0.1:53`. These fields are read-only.
+Queries and bootstrap traffic bind to the outbound tunnel. An outage never
+selects a different provider. Router DNS and destination DNS segments keep their own controls.
 
 **Destination DNS segments** give specific suffixes their own resolver group.
 Overlapping suffixes between segments are rejected.
@@ -175,65 +175,32 @@ destinations the protected networks reach through the tunnel.
 
 | Section | Description |
 | --- | --- |
-| **Iranian destinations via WAN** | One switch downloads and validates lists of Iranian domains and IP ranges, and places the WAN rules **ahead of** the VPN rules. "Your own additions" lets you add your own domains or networks. The lists refresh daily, and **Update lists now** does it immediately. |
+| **Iranian destinations via WAN** | Enabled by default. Uses 57,559 bundled domain suffixes from Iran-v2ray-rules, without downloading lists. WAN rules precede VPN rules. No IP ranges are bundled; personal additions remain available. |
 | **Domain routing engine** | Standard mode classifies a domain by its resolved public IP. Reliable mode uses FakeIP/TProxy and survives address changes. Prefer Reliable for CDN-backed services. |
 | **Route router services by domain policy** | In Reliable mode, the router's own requests to selected domains also use the tunnel. Local management addresses stay direct. |
 | **Logging** | Errors and Warnings suit day-to-day use. Higher levels fill the router log quickly. Timed capture lasts 60 seconds. |
-| **Services** | Select a service chip, then press the page Save; selecting a chip alone does not apply the policy. Broad services may route unrelated sites too. |
-| **Manage services** | Inspect, edit or create services. The identifier is lowercase letters, digits and underscores, and cannot be changed later. |
 | **Custom domains** | One suffix per line, such as `example.com`; subdomains are included and service updates never overwrite this list. |
 | **Custom IP addresses and networks** | One IPv4 or CIDR per line, such as `203.0.113.0/24`; works without DNS. Avoid very broad networks. |
+
+The Services selector and List sources panel are hidden in this build.
+Existing service selections, definitions and background updates remain active;
+saving custom destinations preserves those selections.
 
 After saving, check the policy card. If the tunnel is down, selected
 destinations are blocked — that is the fail-closed behaviour, not a fault.
 
-> **About the Iranian lists:** the data comes from
-> [Iran-clash-rules](https://github.com/Chocolate4U/Iran-clash-rules)
-> (GPL-3.0) and is downloaded at enable time, not shipped in the package. No
-> list can identify every service, new address or shared CDN without error.
-> Traffic that goes straight to an unknown IP, or whose DNS is resolved
-> outside the router, may not be identifiable by domain alone. If a download
-> fails, the previous configuration is kept.
+The [Iran-v2ray-rules snapshot](../luci-ikev2-domains/iran/SOURCE.md) is included
+in the APK and changes with application releases. There is no Update lists
+button. Other optional service lists keep their existing refresh schedule.
+Domain routing depends on clients using the router’s DNS; direct-IP traffic
+cannot always be classified by its domain. Iran-direct classifies by the
+resolved IP in both engines, so shared hosting can cause broader bypasses.
+Its WAN rules take priority over device full-route rules.
 
-### Inbound Server tab (optional)
-
-Only needed if you want your own phone or laptop to reach **this router** from
-outside. Leave it off if you only use the outbound tunnel.
-
-| Option | What it does |
-| --- | --- |
-| **Enabled / Public identity** | Enables the server and sets the public DNS name in the certificate. It must reach the router's WAN from the internet. |
-| **Client IPv4 pool / gateway** | Address range for inbound clients. Must not overlap LAN, WAN or another pool. |
-| **DNS for VPN clients** | The resolver handed to inbound clients, usually the router's IP. |
-| **Traffic selectors** | Whether an inbound user sends all traffic through the tunnel or only reaches internal networks. |
-| **Router/WAN zones** | Derived automatically; change only in unusual topologies. |
-| **MTU, DPD, rekey, reauth** | Inbound session behaviour. The recommended values suit normal use. |
-| **Global access policy** | Default access to the router, public ports, internet and LAN. The Users tab can override it per user. |
-| **Edit raw config** | Replaces the whole generated profile. Reset to generated to go back. |
-
-**ACME certificate:** devices need a trusted certificate to accept the inbound
-server. With DNS-01 enter the provider and its API credentials; with HTTP-01
-port 80 must reach the router from the internet. Save the ACME settings first,
-then request the certificate. Staging is for testing only.
-
-### VPN Users tab
-
-Only meaningful with the inbound server enabled.
-
-| Option | What it does |
-| --- | --- |
-| **Add user** | Creates a username and password. Use a separate account per device. |
-| **Access policy** | Inherits the server-wide policy or overrides it for this user. |
-| **Router access** | Whether the user may reach the router itself. |
-| **Public router ports** | Allowed TCP/UDP ports, open even when router access is denied. |
-| **Internet access** | Normal egress to WAN. |
-| **Local network access** | All networks, only selected addresses, or none. |
-| **PBR participation** | Whether the user follows the project's routing policy or goes direct through WAN. |
-| **Download profile** | Builds an iOS, Windows or Android connection profile. Apple and Android files contain the password; delete them after import. |
-| **Change password / Delete / Disconnect** | Replaces the secret, removes the user, or ends an active session. |
-| **Capture for 60 seconds** | Takes a short strongSwan trace for inbound connection problems. |
-
----
+Upgrading from v1.13.3 retires the inbound server and VPN Users. A private
+recovery archive stays on the router at
+`/etc/ikev2-manager/legacy-inbound-backup.tar.gz` (mode 600). It contains secrets;
+do not upload it. Outbound credentials and personal VPN policies are preserved.
 
 ## 3. Uninstalling
 
@@ -241,7 +208,7 @@ Follow this order so route, PBR, DNS and firewall are handed back to the
 router:
 
 1. On the **Overview** tab, turn **off** "Let the app manage the router" and apply.
-2. If you also want settings, users and secrets erased, press **Reset
+2. If you also want settings and secrets erased, press **Reset
    application** (back up first).
 3. Remove the package:
 
@@ -256,8 +223,8 @@ opkg remove luci-app-ikev2-manager
 > Skipping step 1 can leave routing and firewall rules behind. If removal
 > reports an error, run `doctor` from the Overview page first.
 
-**Upgrading** is simpler: installing a newer IPK or APK keeps your settings,
-users, certificates and personal lists.
+**Upgrading** keeps outbound credentials and personal lists. Version 1.13.5
+removes inbound functionality and enables the bundled Iran-direct policy.
 
 ---
 
@@ -275,7 +242,7 @@ More detail: [Operations and diagnostics](OPERATIONS.md)
 
 ## Building from source
 
-The checks require Node.js, Python 3, jq, OpenSSL and Mono (`mono-devel`).
+The checks require Node.js, Python 3, jq and OpenSSL.
 
 ```sh
 ./scripts/ci-check.sh
@@ -283,7 +250,7 @@ The checks require Node.js, Python 3, jq, OpenSSL and Mono (`mono-devel`).
 
 The IPK is written to `dist/`. Building an APK needs the official SDK for the
 exact target; see [OpenWrt 25.12 and APK](OPENWRT25.md).
-The default APK profile targets Redmi AX6S on OpenWrt 25.12.5 (`mediatek/mt7622`).
+The default APK profile targets Redmi AX6S on OpenWrt 25.12.6 (`mediatek/mt7622`).
 
 ## Documentation
 
@@ -312,5 +279,5 @@ Thanks also to dreamboxone for the additional features inherited by this continu
 
 ## License
 
-Released under the [MIT License](../LICENSE). Terms for the optional lists
-downloaded at runtime are described in [NOTICE](../NOTICE).
+Released under the [MIT License](../LICENSE). The bundled Iranian domains have a GPL-3.0 license; optional lists retain
+their own terms. See [NOTICE](../NOTICE).

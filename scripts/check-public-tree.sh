@@ -48,8 +48,8 @@ if [ -s /tmp/ikev2-public-tree-findings ]; then
 fi
 rm -f /tmp/ikev2-public-tree-findings
 
-[ "$(sed -n 's/^PKG_LICENSE:=//p' Makefile)" = MIT ] ||
-	fail 'Makefile package license must match the repository MIT license'
+[ "$(sed -n 's/^PKG_LICENSE:=//p' Makefile)" = "MIT GPL-3.0-only" ] ||
+	fail 'Package licenses must cover MIT application code and GPL-3.0-only bundled data'
 grep -q '^MIT License$' LICENSE ||
 	fail 'LICENSE is not the canonical MIT license text'
 

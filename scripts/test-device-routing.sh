@@ -163,7 +163,7 @@ grep -Fq 'ip saddr 192.168.60.9 ct mark set ct mark | 0x40000000 meta mark set m
 grep -Fq 'ip saddr 192.168.60.9 meta mark set meta mark & 0xff00ffff | 0x00010000 counter accept comment "ikev2-device:exclude:192.168.60.9"' "$tmp/rules.nft"
 grep -Fq 'ip saddr 192.168.60.5 meta mark set meta mark & 0xff00ffff | 0x00020000 counter accept comment "ikev2-device:fullroute:192.168.60.5"' "$tmp/rules.nft"
 grep -Fq 'elements = { 192.168.60.5, 192.168.60.9 }' "$tmp/rules.nft"
-grep -Fq 'elements = { "br-lan", "ipsec-in" }' "$tmp/rules.nft"
+grep -Fq 'elements = { "br-lan" }' "$tmp/rules.nft"
 grep -Fq 'elements = { "eth0" }' "$tmp/rules.nft"
 grep -Fq 'redirect to :53 comment "ikev2-device:dns-enforce"' "$tmp/rules.nft"
 grep -Fq 'set dns_malformed_ipv4 {' "$tmp/rules.nft"

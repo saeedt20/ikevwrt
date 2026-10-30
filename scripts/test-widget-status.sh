@@ -32,7 +32,8 @@ command="${1:-}"
 key="${1:-}"
 case "$command:$key" in
 	'show:pbr') echo 'pbr.legacy_exclude=policy' ;;
-	'show:ikev2-manager') ;;
+	'show:ikev2-manager') echo 'ikev2-manager.device_test=device_policy' ;;
+	'get:ikev2-manager.device_test.route_mode') echo fullroute ;;
 	'get:pbr.legacy_exclude.name') echo 'VPN Exclude: 192.168.1.90' ;;
 	'get:pbr.legacy_exclude.enabled') echo 1 ;;
 	'get:pbr.legacy_exclude.src_addr') echo '192.168.1.90' ;;
@@ -141,12 +142,9 @@ for expected in \
 	'configured=1' \
 	'pbr=running' \
 	'client_enabled=1' \
-	'server_enabled=1' \
 	'interface_present=1' \
 	'interface_bytes_in=123456' \
 	'interface_bytes_out=654321' \
-	'inbound_conn_loaded=1' \
-	'inbound_pool_loaded=1' \
 	'pbr_domains=2' \
 	'manual_addresses=1' \
 	'community_services=2' \
@@ -223,3 +221,5 @@ cmp -s "$tmp/cache-1" "$tmp/cache-2" || {
 grep -qx 'interface_bytes_in=123456' "$tmp/cache-2"
 
 printf '%s\n' 'status widget runtime tests OK'
+
+grep -Fxq 'device_fullroute=1' "$tmp/status"

@@ -19,8 +19,9 @@ Upgrade an existing public package with:
 opkg install /tmp/luci-app-ikev2-manager_*_all.ipk
 ```
 
-Configuration, users, custom destinations, cached service lists and
-certificates are preserved.
+Outbound credentials, custom destinations and cached service lists are
+preserved. Version 1.13.5 archives and removes the retired inbound settings;
+see [the migration notes](V1.13.4-REVIEW.md).
 
 ### OpenWrt 25.12 unsigned APK
 
@@ -64,7 +65,7 @@ different ABI and is unsupported.
 The promotion sequence is: build the matched package subset with the exact
 release SDK, verify every package version and signature, simulate the named
 transaction, snapshot configuration, install on the test router, restart only
-strongSwan, and exercise outbound, inbound and Site Link SAs. Promote the same
+strongSwan, and exercise outbound and any separately installed Site Link SAs. Promote the same
 artifacts to other routers only after a soak period. Kernel packages are never
 mixed across firmware builds.
 
@@ -91,29 +92,14 @@ signature; public releases are intentionally unsigned.
 
 ## Diagnostics
 
-An enabled inbound server on strongSwan below 6.0.7 produces
-`strongswan_eap_server_security=warn`, `security_ok=0` and `doctor_ok=0` for
-CVE-2026-47895. Repair preflight may continue so it can restore runtime state;
-this does not clear the security finding. Upgrade only a verified compatible
-cohort from a trusted repository. If none is available, retain and report the
-finding instead of treating application repair as a dependency security fix.
-
 ```sh
 /usr/libexec/ikev2-manager-system doctor
 /usr/libexec/ikev2-manager overview
 /usr/libexec/ikev2-manager-system failclosed-check
 /usr/libexec/ikev2-domain-router status
-/usr/libexec/ikev2-user-policy check
 /etc/init.d/pbr status
 swanctl --list-sas
 ```
-
-The inbound policy watcher consumes strongSwan `child-updown` events and then
-reconciles the complete authenticated-session snapshot into one atomic
-nftables transaction. Its 30-second snapshot is a recovery and timeout-refresh
-backstop, not the admission path. The generated server configuration replaces
-a stale SA when the same device-specific EAP account reconnects; do not reuse
-one inbound username on multiple devices.
 
 Healthy outbound routing has:
 
@@ -128,14 +114,11 @@ and never tear down an installed CHILD_SA. Missing SAs are recovered through
 the serialized, rate-limited `ensure-client` action; its reconnect cooldown is
 configurable under the outbound tunnel settings.
 
-The same page stores an ordered tunnel-DNS DoH list and IPv4 bootstrap
-resolvers. The first DoH endpoint is primary. Once per minute the existing
-health process verifies its TLS path through `ipsec-out`; after two consecutive
-failures it probes the remaining endpoints in order and refreshes sing-box only
-after one succeeds. A different healthy bootstrap winner for the same endpoint
-updates telemetry without restarting sing-box. A failed check never changes the
-IKEv2 SA and never enables a WAN resolver for selected destinations. Reordering
-the configured list makes the new first entry primary on the next check.
+Tunnel DNS uses only `https://cloudflare-dns.com/dns-query` with bootstrap
+resolvers `1.1.1.1:53` and `1.0.0.1:53`. The health watcher probes actual DNS
+queries through `ipsec-out`. It can switch between these two Cloudflare
+bootstrap addresses after a successful probe; it never chooses another
+provider or a WAN fallback for selected destinations.
 
 If strongSwan starts before WAN source-address selection is ready, the watcher
 discards only a `proxy-out` IKE_SA that is still `CONNECTING` from a loopback
@@ -301,6 +284,16 @@ nft list table inet ikev2_device_policy
 The LuCI picker lists active local IPv4 neighbours and enriches them with DHCP
 names. Use Custom for a sleeping client, a static address or a subnet.
 
+### Bundled Iran domains
+
+The Iran-direct toggle is enabled by default. Its 57,559 suffixes are packaged
+from [Iran-v2ray-rules](../luci-ikev2-domains/iran/SOURCE.md), with no GeoIP
+ranges and no runtime Iran-list downloads. Personal additions remain separate.
+Enabling the toggle merges them with the snapshot. This WAN policy has priority
+over VPN destinations. Iran-direct uses DNS-populated WAN address sets in both engines; sites sharing
+those IPs may also bypass the VPN. Its WAN destination rule takes priority
+over device full-route marks.
+
 ### Scheduled list refresh
 
 Selected service lists refresh from their sources after every boot and then
@@ -314,9 +307,9 @@ Each downloaded revision is recorded beside its cache in
 `/etc/pbr-ikev2-community-cache` as `<service>.lst.meta` or
 `<service>.cidrs.meta`: source URL, fetch time, entry count, SHA-256, and the
 date and size of the last real change. A failed download writes `.error` beside
-it and the last validated revision stays in use. Policy Routing shows this in
-**List sources**, which also offers **Update lists now**. A list not refreshed
-for seven days is marked stale there.
+it and the last validated revision stays in use. The Services and List sources panels are hidden in the interface.
+Their saved selections, metadata and background refresh remain available
+through the helpers below.
 
 ```sh
 /usr/libexec/ikev2-domains-community sources
@@ -327,108 +320,13 @@ cat /etc/pbr-ikev2-community-cache/refresh.state
 `sources` is read-only. `refresh-schedule force` starts a detached refresh that
 ignores cache freshness and prints its `action_id`.
 
-## Inbound user access
-
-Inbound Server access settings are global defaults. The VPN Users page can
-override each managed EAP user:
-
-- router access: inherit, allow or deny;
-- additional TCP/UDP router ports or ranges that remain reachable while router
-  access is denied;
-- Internet access: inherit, allow or deny;
-- local access: inherit, all configured local zones, selected IPv4/CIDR
-  destinations or deny;
-- PBR: inherit the project domain policy or use direct WAN.
-
-DNS on the router remains reachable for authenticated inbound clients even
-when router access is denied. An additional router-port allowlist can expose a
-specific same-router public service, for example TCP/UDP 1443, without allowing
-other router services. Other traffic is denied until the active EAP identity is
-associated with its current virtual address. Inspect the runtime without
-changing it:
-
-```sh
-/usr/libexec/ikev2-user-policy check
-nft list table inet ikev2_user_policy
-```
-
-When the VPN server is selected under Protected networks and plain-DNS
-enforcement is enabled, TCP/UDP port 53 from `ipsec-in` is redirected to the
-router resolver. DNS-over-TLS still requires the separate block option, and
-endpoint-managed DoH or private-relay features must be disabled or controlled
-on the client.
-
-The DNS passthrough flag is independent of a device's route. It excludes the
-source from both the port 53 redirect and the managed DoT rejection. It does
-not assign a resolver to that device: DHCP, the operating system or the
-application must already point it at the intended external DNS service. The DPI
-passthrough flag uses the active integration mark published by Zapret1 or an
-enabled Zapret2 before its queue hook. With Zapret2 the app stores that mark in
-conntrack and restores it on replies before Zapret2's pre-NAT hook, so the
-device is bypassed in both directions without changing any Zapret strategy. The
-Unmanaged preset combines direct WAN with both flags; the runtime refuses to
-install it if neither integration mark can be validated.
-
-The VPN Users page can generate Apple mobileconfig, Android details and a
-separate Windows VPNv2 XML for each user. Apple and Android output contains the
-current password and must be deleted after use. The Windows XML contains a
-catch-all NRPT rule for the VPN resolver but no password and is also suitable
-for MDM. Download the reusable `Nikitid-IKEv2-Setup.exe` once from the top of
-the page, select any downloaded XML in it and choose Install. It requests UAC
-and provisions the selected VPNv2 CSP profile directly through the built-in
-WMI Bridge; it doesn't run PowerShell or retain a scheduled task or service. The same UI
-can edit the connection name, update or remove the profile, and detailed
-failures are written under the user's local application-data directory. The
-server domain is used as the default connection name. Plain double-click
-installation of CSP XML itself is not supported by Windows.
-
-For an intermittent inbound failure, start the 60-second capture on the VPN
-Users page and attempt the connection during that window. It subscribes to the
-strongSwan VICI log, writes at most 512 KiB to
-`/tmp/ikev2-inbound-diagnostic.log`, stops automatically and does not increase
-system-log verbosity. Recognised failures are shown by identity and IKE phase.
-
-Reliable-mode logging normally stays at `warn`. The domain-policy page can run
-a separate 60-second FakeIP debug capture; the detached action restores the
-selected normal level after its timer or an interruption. Raising and restoring
-that level restarts the FakeIP resolver, so the page presents it as a diagnostic
-action rather than a harmless log viewer.
-
-Policy allow entries have a timeout and are refreshed by a dedicated session
-watcher. Deleting a user or losing the identity-to-address mapping therefore
-fails closed. The watcher checks the active-SA signature every two seconds and
-also performs a full refresh every 30 seconds. The 90-second timeout is only a
-backstop for a stalled watcher; an isolated VICI read failure preserves the
-last valid table until the next successful read.
-
-An address claimed by two identities at the same time — a stale SA still
-holding an address the pool has already reissued — is denied rather than
-granted the union of both policies. Custom inbound profiles do not use the
-managed per-user policy.
-
 ## Status Overview widget
 
-The package installs `06_ikev2-manager.js` in the LuCI Status Overview include
-directory, before the standard system widgets that start at `10`. Its three
-summary blocks cover the outbound tunnel, policy routing and inbound server.
-They report live outbound SA state, PBR/domain-routing and fail-closed state,
-policy and excluded-device counts, excluded traffic, inbound-server readiness
-and the active inbound-session count.
-The outbound traffic counters are the accumulated `ipsec-out` interface RX/TX
-totals and survive CHILD_SA rekeys; they reset when the interface is recreated.
-
-Detailed inbound rows are rendered only for established `ikev2-in` sessions
-with an installed CHILD_SA. Each row contains the EAP identity, assigned VPN
-address, current connection duration and traffic counters from the client's
-perspective. Offline accounts and incomplete IKE handshakes are omitted.
-`ikev2-manager widget-status` supplies the inexpensive read-only project
-summary; `swanmon list-sas` supplies live SA state.
-
-Overview discovers widget files automatically and sorts them lexicographically,
-so the numeric filename prefix controls the router-wide order. The page's
-Show/Hide control stores visibility in browser local storage for the current
-browser profile; it does not change UCI or package configuration. This LuCI
-page does not provide drag-and-drop reordering.
+The package installs `06_ikev2-manager-v2.js` before the standard system widgets.
+Its two summary cards cover the outbound tunnel and policy routing, including
+fail-closed state, policy counts and excluded devices. Outbound RX/TX counters
+come from `ipsec-out` and survive CHILD_SA rekeys; recreating the interface
+resets them. There are no inbound-user rows in v1.13.4.
 
 ## Background actions
 
@@ -475,31 +373,11 @@ longest phase and can take tens of seconds. Saving an unchanged managed setup
 or unchanged policy list returns after a live health check instead of restarting
 PBR; a failed health check automatically falls back to the full apply path.
 
-## UPnP and dynamic DNS
+## UPnP
 
-`miniupnpd-nftables` can coexist with the manager because it uses dedicated
-firewall4 chains. When the inbound server is enabled, UPnP permission rules
-must reserve UDP 500 and 4500 before any broad allow range. The dependency
-doctor warns when either port remains available to UPnP and reports an active
-mapping on either port as a conflict. Reserve ports owned by adjacent services,
-such as an MTProto redirect, in the same way.
-
-A dynamic-DNS hostname must publish the router's direct public address; an
-HTTP-only proxy cannot carry IKEv2. Keep the inbound certificate identity equal
-to that hostname. DNS-01 ACME avoids sharing TCP 80 with router web services or
-other port-forwarding features.
-
-## Certificates
-
-Inspect the active inbound certificate:
-
-```sh
-openssl x509 -in /etc/swanctl/x509/ikev2.pem \
-  -noout -subject -issuer -dates -fingerprint -sha256
-```
-
-The ACME hotplug hook reloads renewed credentials automatically. Certificate
-identity must match the public DNS name used by clients.
+The dependency doctor checks for conflicting mappings on IKEv2 UDP ports 500
+and 4500. Reserve ports required by the outbound VPN client and adjacent
+services when configuring UPnP.
 
 ## Backup and recovery
 
@@ -517,8 +395,7 @@ Recovery sequence:
 2. confirm ordinary WAN access;
 3. run the dependency doctor;
 4. re-enable managed mode and the outbound client;
-5. verify one selected and one ordinary destination;
-6. enable the inbound server only after certificate validation.
+5. verify one selected and one ordinary destination.
 
 ## Dependency reset and package removal
 
@@ -529,7 +406,7 @@ only packages recorded as application-owned. Packages that another installed
 application still requires are retained and reported as shared.
 
 After a successful package transaction, the reset restores the packaged
-default configuration and removes application users, submitted client secrets,
+default configuration and removes submitted client secrets,
 generated strongSwan profiles, copied certificate material, generated policy
 lists and caches. If an applied Site Link exit role still consumes the inbound
 certificate, its certificate, private key, chain and ACME renewal section are

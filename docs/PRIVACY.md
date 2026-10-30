@@ -1,41 +1,36 @@
 # Publication privacy review
 
-The v1.13.3 publication was checked before pushing source or uploading assets.
-Only the application APK and its SHA-256 checksum are release assets.
+The v1.13.5 publication was checked before pushing source or publishing assets.
+The release contains only the application APK and its SHA-256 checksum.
 
 ## Checks performed
 
-- Gitleaks 8.24.3 scanned existing Git history, the proposed public source tree
-  and the extracted APK payload. No secrets were detected.
-- The proposed source and APK payload were checked for private details from the
-  development and router-validation session, including local workstation paths,
-  network identifiers and temporary credentials. No matches were found.
-- The APK payload was compared with the tested source. It contains packaged
-  defaults, application resources and the Windows helper, without a router
-  settings backup or live credentials.
-- The new commit uses the maintainer's GitHub noreply address. Existing upstream
-  credits, licenses and public commit history are preserved.
+- Gitleaks 8.24.3 checked Git history, the proposed public source tree, extracted
+  APK files and APK script metadata. No secrets were detected.
+- Source and package checks found no private development-session identifiers,
+  workstation paths, temporary router credentials or live network details.
+- Packaged resources were compared with source. No router configuration backup,
+  live credentials, legacy recovery archive or diagnostic capture is included.
+- The maintainer commit uses a GitHub noreply address. Existing upstream credits,
+  licenses and public history are preserved.
 
-## Material kept out of publication
+## Screenshots and excluded material
 
-Build directories, local logs, router backups, private keys, authentication
-state and private runbooks are excluded from the public tree. The router's
-pre-upgrade backup stays on the router; it is not a release asset. No live-router
-screenshot or network capture is published with this release.
+The README and UI previews were rendered locally with synthetic demo data.
+They contain no live router credentials, endpoints, device identifiers or LAN
+addresses. The published JPEGs have no EXIF, location or comment metadata.
+Original router screenshots are not published.
 
-The README screenshot is a local preview rendered from the application's UI
-code with synthetic data and a clearly marked demo header. It is cropped above
-network and device fields. It does not connect to a router, and the published
-JPEG was checked for EXIF, location and comment metadata; none is present.
+Build directories, logs, private keys, authentication state, local runbooks and
+router backups stay out of Git and release assets. The upgrade's private legacy
+recovery archive stays on the router and must never be shared publicly.
 
-Files under `keys/` are public verification keys, not signing secrets. Test
-credentials are synthetic fixtures; certificate tests generate temporary keys
-during execution.
+Files under `keys/` are public verification keys. Test credentials are synthetic
+fixtures; certificate tests generate temporary keys during execution.
 
 ## Sharing diagnostics
 
-Review issue attachments yourself. Connection profiles can contain passwords;
-backups and diagnostic output can reveal endpoints, device names, addresses,
-MAC addresses and keys. Remove those details before sharing. Scanner results
-reduce accidental exposure but cannot guarantee that every sensitive value
-will be detected.
+Review attachments before sharing. Connection profiles can contain passwords;
+backups and diagnostics can reveal endpoints, addresses, device names, MAC
+addresses and keys. Remove those details first. Automated scans reduce accidental
+exposure but cannot guarantee detection of every sensitive value.

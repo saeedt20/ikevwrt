@@ -28,7 +28,6 @@ wan_dns_probe_interval=60
 pbr_dump_state='/var/run/ikev2-pbr-dump.state'
 pbr_dump_interval=60
 community_refresh_state='/var/run/ikev2-community-refresh.state'
-iran_refresh_state='/var/run/ikev2-iran-refresh.state'
 community_refresh_interval=900
 
 has_proxy4() {
@@ -253,16 +252,6 @@ while true; do
 		printf 'state=down updated=%s\n' "$(date +%s)" >"$status_file"
 	fi
 
-	# Self-heal the inbound server if it drifted: enabled in config but the
-	# ikev2-in connection is not loaded into charon (e.g. strongSwan reinstall
-	# cleared /etc/swanctl, or a partial swanctl reload left the pool/cert
-	# unloaded). server-ensure re-syncs the cert and reloads; it is a no-op when
-	# already healthy, so this only acts when the server is actually broken.
-	if [ "$(uci -q get ikev2-manager.server.enabled)" = 1 ] &&
-		! swanctl --list-conns 2>/dev/null | grep -q 'ikev2-in:'; then
-		/usr/libexec/ikev2-manager server-ensure >/dev/null 2>&1 || :
-	fi
-
 	loop_now="$(date +%s)"
 	if periodic_due "$loop_now" "$dns_probe_state" "$dns_probe_interval"; then
 		/usr/libexec/ikev2-manager-system dns-segments-check >/dev/null 2>&1 || :
@@ -287,14 +276,6 @@ while true; do
 		[ ! -x /usr/libexec/ikev2-domains-community ] ||
 			/usr/libexec/ikev2-domains-community refresh-if-due >/dev/null 2>&1 || :
 		mark_periodic "$loop_now" "$community_refresh_state"
-	fi
-	# The Iranian direct lists have their own daily schedule inside the helper;
-	# this only asks whether it is due, which costs a file read. The helper
-	# refuses while the feature is off, so this can never re-enable it.
-	if periodic_due "$loop_now" "$iran_refresh_state" "$community_refresh_interval"; then
-		[ ! -x /usr/libexec/ikev2-iran-direct ] ||
-			/usr/libexec/ikev2-iran-direct refresh-if-due >/dev/null 2>&1 || :
-		mark_periodic "$loop_now" "$iran_refresh_state"
 	fi
 	sleep 15
 done

@@ -24,7 +24,6 @@ find luci-ikev2-domains luci-ikev2-manager \
 ./scripts/check-luci-exec-acl.sh
 ./scripts/test-luci-client-ui.sh
 ./scripts/test-luci-english.sh
-node ./scripts/test-luci-users-ui.js
 node ./scripts/test-luci-shared.js
 node ./scripts/test-luci-status-widget.js
 ./scripts/test-widget-status.sh
@@ -34,8 +33,8 @@ node ./scripts/test-luci-status-widget.js
 ./scripts/test-upgrade-reconcile.sh
 
 ./scripts/test-runtime-modules.sh
+python3 ./scripts/test-client-only.py
 python3 ./scripts/test-audit-regressions.py
-python3 ./scripts/test-manager-serialization.py
 ./scripts/test-system-validation.sh
 ./scripts/test-upnp-compatibility.sh
 ./scripts/test-dependency-state.sh
@@ -53,19 +52,12 @@ python3 ./scripts/test-manager-serialization.py
 ./scripts/test-community-domains.sh
 ./scripts/test-pbr-restart.sh
 ./scripts/test-iran-direct.sh
+./scripts/test-iran-priority.sh
 ./scripts/test-discord-voice-routing.sh
 ./scripts/test-device-routing.sh
-./scripts/test-user-credentials.sh
-./scripts/test-client-profile-export.sh
 ./scripts/test-client-material-upload.sh
-./scripts/test-windows-profile-installer.sh
-./windows-profile-installer/test.sh
-./scripts/test-user-policy.sh
 ./scripts/test-client-transaction.sh
 ./scripts/test-connect-diagnosis.sh
-./scripts/test-acme-settings.sh
-./scripts/test-server-transaction.sh
-./scripts/test-server-certificate-chain.sh
 
 PYTHONPYCACHEPREFIX="$root/build/pycache" \
 	python3 -m py_compile scripts/pack-ipk.py

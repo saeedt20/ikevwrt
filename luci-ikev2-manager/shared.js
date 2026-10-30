@@ -73,7 +73,7 @@ function daysUntil(value) {
 	return Math.ceil((date.getTime() - Date.now()) / 86400000);
 }
 
-var STYLE_ID = 'ikev2-manager-styles-v7';
+var STYLE_ID = 'ikev2-manager-styles-v8';
 
 var CSS = `
 			/* A bare custom property is not an animatable type, so the
@@ -755,108 +755,121 @@ var CSS = `
 				min-width: 2.35rem !important;
 				padding: 0 !important;
 			}
+			.ikev2-status-widget, .ikev2-tunnel-page {
+				--ikev2-muted: color-mix(in srgb, currentColor 75%, transparent);
+			}
 			.ikev2-status-widget { display: grid; gap: .75rem; }
-			.ikev2-widget-summary {
+			.ikev2-widget-summary, .ikev2-widget-component-head {
 				display: flex;
 				align-items: center;
 				justify-content: space-between;
-				gap: .75rem;
-			}
-			.ikev2-widget-summary-label {
-				color: var(--ikev2-muted);
-				font-size: .72rem;
-				font-weight: 600;
-				letter-spacing: .06em;
-				text-transform: uppercase;
+				flex-wrap: wrap;
+				gap: .5rem;
 			}
 			.ikev2-widget-overview {
 				display: grid;
-				grid-template-columns: repeat(3, minmax(0, 1fr));
-				gap: .65rem;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: .85rem;
 			}
 			.ikev2-widget-component {
 				display: flex;
 				flex-direction: column;
 				min-width: 0;
-				padding: .82rem .85rem;
+				padding: 1rem;
 				border: 1px solid var(--ikev2-border);
 				border-radius: var(--ikev2-radius-sm);
-				background: var(--ikev2-surface-2);
+				background: var(--ikev2-surface);
 			}
-			.ikev2-widget-component-label {
-				margin-bottom: .5rem;
-				color: var(--ikev2-muted);
-				font-size: .72rem;
-				font-weight: 600;
-				letter-spacing: .06em;
-				text-transform: uppercase;
-			}
-			.ikev2-widget-component-head {
-				display: flex;
-				align-items: center;
-				min-height: 1.65rem;
-			}
+			.ikev2-widget-component-label { font-weight: 600; font-size: .95rem; }
 			.ikev2-widget-component-detail {
-				margin-top: .48rem;
+				margin: .65rem 0 0;
 				color: var(--ikev2-muted);
-				font-size: .82rem;
-				line-height: 1.4;
+				font-size: .85rem;
+				line-height: 1.5;
 			}
 			.ikev2-widget-component-meta {
 				display: flex;
 				align-items: center;
 				flex-wrap: wrap;
-				gap: .35rem .7rem;
+				gap: .45rem 1.5rem;
 				margin-top: auto;
-				padding-top: .52rem;
-				color: var(--ikev2-muted);
-				font-size: .78rem;
-			}
-			.ikev2-widget-component-meta .ikev2-traffic {
-				color: var(--ikev2-muted);
-			}
-			.ikev2-widget-clients {
-				display: grid;
-				gap: .55rem;
-				padding-top: .15rem;
-			}
-			.ikev2-widget-clients-head {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				gap: .75rem;
-			}
-			.ikev2-widget-client-list { display: grid; gap: .55rem; }
-			.ikev2-widget-client {
-				display: grid;
-				grid-template-columns: minmax(10rem, 1fr) auto auto;
-				align-items: center;
-				gap: .75rem 1rem;
-				padding: .72rem .8rem;
-				border: 1px solid var(--ikev2-border);
-				border-radius: var(--ikev2-radius-sm);
-				background: var(--ikev2-surface-2);
-			}
-			.ikev2-widget-client-name { min-width: 0; }
-			.ikev2-widget-address,
-			.ikev2-widget-duration {
-				color: var(--ikev2-muted);
+				padding-top: .85rem;
 				font-size: .82rem;
+				color: var(--ikev2-muted);
 			}
-			.ikev2-widget-address {
-				display: block;
+			.ikev2-widget-component-meta .ikev2-traffic { gap: .5rem; color: inherit; }
+			.ikev2-traffic-label { display: block; font-size: .73rem; margin-bottom: .1rem; }
+			.ikev2-widget-component-meta .ikev2-traffic strong { font-size: 1rem; }
+
+			.ikev2-tunnel-page { --ikev2-radius: 12px; --ikev2-radius-sm: 8px; }
+			.ikev2-tunnel-layout {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) minmax(16rem, .42fr);
+				gap: 1rem;
+				align-items: start;
+			}
+			.ikev2-tunnel-layout > *, .ikev2-tunnel-layout aside { min-width: 0; }
+			.ikev2-tunnel-layout .ikev2-section { margin-top: 0; }
+			.ikev2-connection-fields {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 1.1rem 1rem;
+				margin-top: 1.1rem;
+			}
+			.ikev2-connection-field { display: grid; align-content: start; gap: .45rem; min-width: 0; }
+			.ikev2-connection-field .ikev2-field-label { min-height: 2.65rem; }
+			.ikev2-connection-field-wide { grid-column: 1 / -1; }
+			.ikev2-connection-field-wide .ikev2-field-label { min-height: 0; }
+			.ikev2-connection-field input, .ikev2-connection-field select { width: 100%; min-width: 0; }
+			.ikev2-tunnel-page .ikev2-advanced-toggle { width: auto; padding: .45rem .65rem; gap: .4rem; }
+			.ikev2-tunnel-stats { display: grid; gap: 1rem; }
+			.ikev2-tunnel-stat { min-width: 0; }
+			.ikev2-tunnel-stat + .ikev2-tunnel-stat {
+				border-top: 1px solid var(--ikev2-border);
+				padding-top: 1rem;
+			}
+			.ikev2-tunnel-stat-label { color: var(--ikev2-muted); font-size: .78rem; margin-bottom: .35rem; }
+			.ikev2-tunnel-stat .ikev2-card-value {
+				font-size: 1.2rem;
+				font-weight: 650;
 				overflow-wrap: anywhere;
+				font-variant-numeric: tabular-nums;
 			}
-			.ikev2-widget-duration { white-space: nowrap; }
-			.ikev2-widget-traffic {
-				display: inline-flex;
-				align-items: center;
-				justify-content: flex-end;
-				gap: .65rem;
+			.ikev2-tunnel-stat .ikev2-card-detail { margin-top: .3rem; font-size: .8rem; overflow-wrap: anywhere; }
+			.ikev2-session-details { border-top: 1px solid var(--ikev2-border); padding-top: .75rem; }
+			.ikev2-session-details summary { font-size: .83rem; cursor: pointer; }
+			.ikev2-session-details .ikev2-tunnel-stat { padding-top: .75rem; }
+			.ikev2-tunnel-dns-values {
+				display: grid;
+				grid-template-columns: 9rem minmax(0, 1fr);
+				gap: .65rem 1rem;
+				margin: 0 0 1rem;
 			}
-			.ikev2-widget-footer {
-				display: flex;
-				justify-content: flex-end;
+			.ikev2-tunnel-dns-values dt { font-weight: 600; }
+			.ikev2-tunnel-dns-values dd { margin: 0; overflow-wrap: anywhere; }
+			.ikev2-tunnel-dns-values code { white-space: normal; }
+			.ikev2-dns-disclosure { margin: 1rem 0; border: 1px solid var(--ikev2-border); border-radius: var(--ikev2-radius); }
+			.ikev2-dns-disclosure > summary { padding: 1rem 1.25rem; cursor: pointer; font-weight: 600; }
+			.ikev2-dns-disclosure > summary .ikev2-pill { margin-left: .6rem; font-weight: 500; }
+			.ikev2-dns-disclosure[open] > summary { border-bottom: 1px solid var(--ikev2-border); }
+			.ikev2-dns-disclosure-body { padding: 1.25rem; }
+			.ikev2-dns-disclosure summary:focus-visible, .ikev2-session-details summary:focus-visible {
+				outline: 2px solid var(--ikev2-accent); outline-offset: 3px;
+			}
+			@media (max-width: 900px) {
+				.ikev2-tunnel-layout { grid-template-columns: 1fr; }
+				.ikev2-tunnel-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+				.ikev2-tunnel-stat + .ikev2-tunnel-stat { border-top: 0; padding-top: 0; }
+				.ikev2-tunnel-stats > .ikev2-tunnel-stat:nth-child(3) { grid-column: 1 / -1; }
+				.ikev2-session-details { grid-column: 1 / -1; }
+			}
+			@media (max-width: 600px) {
+				.ikev2-connection-fields { grid-template-columns: 1fr; }
+				.ikev2-connection-field .ikev2-field-label { min-height: 0; }
+				.ikev2-tunnel-dns-values { grid-template-columns: 1fr; gap: .4rem; }
+				.ikev2-tunnel-dns-values dd { margin-bottom: .5rem; }
+				.ikev2-tunnel-page .ikev2-section-head { display: flex; }
+				.ikev2-tunnel-page .ikev2-section-head > * { margin-bottom: 0; }
 			}
 
 			/* ── Notes ──────────────────────────────────────────────── */
@@ -1860,9 +1873,6 @@ var CSS = `
 				.ikev2-user-card { grid-template-columns: 1fr; }
 				.ikev2-user-actions { grid-column: auto; justify-content: flex-start; }
 				.ikev2-session { align-items: flex-start; flex-direction: column; }
-				.ikev2-widget-client { grid-template-columns: 1fr auto; }
-				.ikev2-widget-duration { grid-column: 1; }
-				.ikev2-widget-traffic { grid-column: 2; grid-row: 1 / span 2; }
 				.ikev2-engine-head { align-items: stretch; flex-direction: column; }
 				.ikev2-engine-action { justify-content: flex-start; }
 				.ikev2-engine-action .cbi-button { width: 100%; min-width: 0; }

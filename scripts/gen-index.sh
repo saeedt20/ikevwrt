@@ -32,7 +32,7 @@ cd "$root"
 
 # Linear test scripts have no functions worth mapping, and the private runbook
 # tree is untracked on purpose.
-files="$(git ls-files '*.sh' '*.js' '*.init' \
+files="$(git ls-files --cached --others --exclude-standard '*.sh' '*.js' '*.init' \
   | grep -v '^scripts/test-' \
   | grep -v '^tests/' \
   | grep -v '^docs/private/' \
@@ -55,6 +55,7 @@ files="$(git ls-files '*.sh' '*.js' '*.init' \
 } >"$out.new"
 
 for file in $files; do
+  [ -f "$file" ] || continue
   lines="$(wc -l <"$file" | tr -d ' ')"
   [ "$lines" -ge "$min_lines" ] || continue
   awk -v file="$file" -v lines="$lines" '

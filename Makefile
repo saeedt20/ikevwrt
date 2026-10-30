@@ -7,9 +7,9 @@ PKG_NAME:=luci-app-ikev2-manager
 # canonical build (scripts/build-ipk.sh). These SDK literals are kept in sync
 # manually because OpenWrt's relative include path is unreliable;
 # scripts/check-version-sync.sh fails the canonical build if they drift (B3).
-PKG_VERSION:=1.13.3
+PKG_VERSION:=1.13.5
 PKG_RELEASE:=
-PKG_LICENSE:=MIT
+PKG_LICENSE:=MIT GPL-3.0-only
 PKG_MAINTAINER:=saeedt20
 PKGARCH:=all
 
@@ -29,8 +29,7 @@ define Package/luci-app-ikev2-manager
 endef
 
 define Package/luci-app-ikev2-manager/description
- LuCI application and runtime for an IPv4 IKEv2 client, an optional
- road-warrior IKEv2 server, domain-based PBR, device overrides and
+ LuCI application and runtime for an IPv4 IKEv2 client, domain-based PBR, device overrides and
  fail-closed routing on OpenWrt 24.10 and 25.12.
 endef
 
@@ -108,13 +107,11 @@ define Package/luci-app-ikev2-manager/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-xfrm.init $(1)/etc/init.d/ikev2-xfrm
 	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-health.init $(1)/etc/init.d/ikev2-health
-	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-user-policy.init $(1)/etc/init.d/ikev2-user-policy
 	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-domain-router.init $(1)/etc/init.d/ikev2-domain-router
 	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-dns-segments.init $(1)/etc/init.d/ikev2-dns-segments
 
-	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface $(1)/etc/hotplug.d/acme
+	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
 	$(INSTALL_BIN) ./ikev2-manager-runtime/90-ikev2-wan $(1)/etc/hotplug.d/iface/90-ikev2-manager
-	$(INSTALL_BIN) ./ikev2-manager-runtime/90-ikev2-acme $(1)/etc/hotplug.d/acme/90-ikev2-manager
 
 	$(INSTALL_DIR) $(1)/etc/strongswan.d/charon
 	$(INSTALL_CONF) ./ikev2-manager-runtime/20-router-xfrm.conf $(1)/etc/strongswan.d/charon/20-ikev2-manager.conf
@@ -136,6 +133,11 @@ define Package/luci-app-ikev2-manager/install
 	$(INSTALL_DIR) $(1)/usr/libexec
 	$(INSTALL_BIN) ./luci-ikev2-manager/ikev2-manager.sh $(1)/usr/libexec/ikev2-manager
 	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-manager-system.sh $(1)/usr/libexec/ikev2-manager-system
+	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-client-migrate.sh $(1)/usr/libexec/ikev2-client-migrate
+	$(INSTALL_DIR) $(1)/usr/share/ikev2-domains $(1)/usr/share/licenses/luci-app-ikev2-manager/iran
+	$(INSTALL_DATA) ./luci-ikev2-domains/iran/domains.lst $(1)/usr/share/ikev2-domains/iran-domains.txt
+	$(INSTALL_DATA) ./luci-ikev2-domains/iran/SOURCE.md $(1)/usr/share/licenses/luci-app-ikev2-manager/iran/SOURCE.md
+	$(INSTALL_DATA) ./luci-ikev2-domains/iran/LICENSE $(1)/usr/share/licenses/luci-app-ikev2-manager/iran/LICENSE
 	$(INSTALL_DIR) $(1)/usr/libexec/ikev2-manager.d
 	$(INSTALL_DATA) ./ikev2-manager-runtime/lib/actions.sh $(1)/usr/libexec/ikev2-manager.d/actions.sh
 	$(INSTALL_DATA) ./ikev2-manager-runtime/lib/package-manager.sh $(1)/usr/libexec/ikev2-manager.d/package-manager.sh
@@ -148,7 +150,6 @@ define Package/luci-app-ikev2-manager/install
 	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-iran-direct.sh $(1)/usr/libexec/ikev2-iran-direct
 	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-discord-voice.sh $(1)/usr/libexec/ikev2-discord-voice
 	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-device-routing.sh $(1)/usr/libexec/ikev2-device-routing
-	$(INSTALL_BIN) ./ikev2-manager-runtime/ikev2-user-policy.sh $(1)/usr/libexec/ikev2-user-policy
 	$(INSTALL_BIN) ./luci-ikev2-domains/community-domains.sh $(1)/usr/libexec/ikev2-domains-community
 	$(INSTALL_BIN) ./luci-ikev2-domains/restart-pbr.sh $(1)/usr/libexec/ikev2-domains-restart
 	$(INSTALL_BIN) ./luci-ikev2-domains/ikev2-devices.sh $(1)/usr/libexec/ikev2-devices
@@ -178,26 +179,24 @@ define Package/luci-app-ikev2-manager/install
 	$(INSTALL_DATA) ./luci-ikev2-manager/acl.json $(1)/usr/share/rpcd/acl.d/luci-app-ikev2-manager.json
 
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/ikev2-manager
-	$(INSTALL_DATA) ./luci-ikev2-manager/shared.js $(1)/www/luci-static/resources/ikev2-manager/shared-v21.js
-	$(INSTALL_BIN) ./windows-profile-installer/bin/Nikitid-IKEv2-Setup.exe $(1)/www/luci-static/resources/ikev2-manager/Nikitid-IKEv2-Setup.exe
+	$(INSTALL_DATA) ./luci-ikev2-manager/shared.js $(1)/www/luci-static/resources/ikev2-manager/shared-v23.js
 
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/status/include
-	$(INSTALL_DATA) ./luci-ikev2-manager/status-widget.js $(1)/www/luci-static/resources/view/status/include/06_ikev2-manager.js
+	$(INSTALL_DATA) ./luci-ikev2-manager/status-widget.js $(1)/www/luci-static/resources/view/status/include/06_ikev2-manager-v2.js
 
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/ikev2-manager
-	$(INSTALL_DATA) ./luci-ikev2-manager/setup.js $(1)/www/luci-static/resources/view/ikev2-manager/setup-v13.js
-	$(INSTALL_DATA) ./luci-ikev2-manager/users.js $(1)/www/luci-static/resources/view/ikev2-manager/users-v17.js
-	$(INSTALL_DATA) ./luci-ikev2-manager/settings.js $(1)/www/luci-static/resources/view/ikev2-manager/settings-v13.js
-	$(INSTALL_DATA) ./luci-ikev2-manager/client.js $(1)/www/luci-static/resources/view/ikev2-manager/client-v13.js
+	$(INSTALL_DATA) ./luci-ikev2-manager/setup.js $(1)/www/luci-static/resources/view/ikev2-manager/setup-v15.js
+	$(INSTALL_DATA) ./luci-ikev2-manager/client.js $(1)/www/luci-static/resources/view/ikev2-manager/client-v15.js
 
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/ikev2-domains
-	$(INSTALL_DATA) ./luci-ikev2-domains/editor.js $(1)/www/luci-static/resources/view/ikev2-domains/editor-v14.js
+	$(INSTALL_DATA) ./luci-ikev2-domains/editor.js $(1)/www/luci-static/resources/view/ikev2-domains/editor-v17.js
 endef
 
 define Package/luci-app-ikev2-manager/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 rm -f /tmp/luci-indexcache
+rm -f /www/luci-static/resources/view/status/include/06_ikev2-manager.js
 rm -rf /tmp/luci-modulecache
 # Every -vN rename leaves the superseded resource behind; the router had eight
 # such orphans before this ran. Only names this package no longer ships are
@@ -261,26 +260,11 @@ elif [ "$$ikev2_feed_stale" = 1 ]; then
 	fi
 fi
 # feed-migration end
-# runtime-reconcile begin
-# Install newly introduced owned nftables rules without restarting the network,
-# PBR, strongSwan, dnsmasq or fw4. The helper removes obsolete generated UCI
-# DNS/DoT sections only after the replacement runtime validates and loads.
-if [ "$$(uci -q get ikev2-manager.globals.configured)" = 1 ]; then
-	if /usr/libexec/ikev2-manager-system _upgrade-reconcile >/dev/null 2>&1 &&
-	   /usr/libexec/ikev2-manager _upgrade-server-profile >/dev/null 2>&1; then
-		echo "Reconciled the active IKEv2 runtime and generated server profile."
-	else
-		echo "Could not reconcile the active IKEv2 policy; open LuCI and apply the configuration." >&2
-	fi
-fi
-# runtime-reconcile end
 # health-restart begin
 # The watcher is a shell script, and the running instance keeps executing the
-# copy it already read: after an upgrade it goes on behaving like the previous
-# version until something restarts it. Upgrading 1.1.x to 1.2.x that way left
-# the inbound user policy never created at all, because the old watcher has no
-# such step. Restart it only when it was already running, so an installation
-# that deliberately keeps the runtime stopped is not started here.
+# copy it already read. Replace it before retiring inbound settings so the old
+# watcher cannot recreate them. Restart it only when it was already running,
+# so an installation that deliberately keeps the runtime stopped stays stopped.
 ikev2_health_init="$${IKEV2_HEALTH_INIT:-/etc/init.d/ikev2-health}"
 ikev2_health_running=0
 ikev2_health_enabled=0
@@ -314,39 +298,27 @@ if [ "$$ikev2_health_running" = 1 ]; then
 		echo "Restarted the health watcher so it runs the installed version."
 	else
 		echo "Could not restart the health watcher; run '$$ikev2_health_init restart'." >&2
+		exit 1
 	fi
 fi
 # health-restart end
-# inbound-policy-watcher begin
-# Keep inbound admission independent from the slower general health loop. A
-# HUP makes an existing watcher exec the newly installed script without
-# removing its fail-closed nftables table or interrupting active clients.
-ikev2_policy_init="$${IKEV2_USER_POLICY_INIT:-/etc/init.d/ikev2-user-policy}"
-ikev2_policy_active=0
-if [ "$$(uci -q get ikev2-manager.globals.configured)" = 1 ] && \
-   [ "$$(uci -q get ikev2-manager.server.enabled)" = 1 ] && \
-   [ "$$(uci -q get ikev2-manager.server.custom_config)" != 1 ]; then
-	ikev2_policy_active=1
-fi
-if [ "$$ikev2_policy_active" = 1 ] && [ -x "$$ikev2_policy_init" ]; then
-	"$$ikev2_policy_init" disable >/dev/null 2>&1 || true
-	"$$ikev2_policy_init" enable >/dev/null 2>&1 || true
-	if "$$ikev2_policy_init" running >/dev/null 2>&1; then
-		"$$ikev2_policy_init" reload >/dev/null 2>&1 || \
-			echo "Could not reload the inbound policy watcher." >&2
+# Retire responder access before refreshing the client runtime.
+/usr/libexec/ikev2-client-migrate || { echo 'Client-only migration failed; review the private recovery backup.' >&2; exit 1; }
+# runtime-reconcile begin
+# Install newly introduced owned nftables rules without restarting the network,
+# WAN or strongSwan. The helper applies the bundled Iran policy and removes
+# obsolete DNS/DoT sections only after the replacement runtime validates.
+if [ "$$(uci -q get ikev2-manager.globals.configured)" = 1 ]; then
+	if /usr/libexec/ikev2-manager-system _upgrade-reconcile >/dev/null 2>&1; then
+		echo "Reconciled the active outbound IKEv2 runtime."
 	else
-		"$$ikev2_policy_init" start >/dev/null 2>&1 || \
-			echo "Could not start the inbound policy watcher." >&2
+		echo "Could not reconcile the active IKEv2 policy; open LuCI and apply the configuration." >&2
 	fi
-elif [ -x "$$ikev2_policy_init" ]; then
-	"$$ikev2_policy_init" running >/dev/null 2>&1 && \
-		"$$ikev2_policy_init" stop >/dev/null 2>&1 || true
-	"$$ikev2_policy_init" disable >/dev/null 2>&1 || true
 fi
-# inbound-policy-watcher end
+# runtime-reconcile end
+
 if [ "$$(uci -q get ikev2-manager.globals.configured)" = 1 ] || \
-   [ "$$(uci -q get ikev2-manager.client.enabled)" = 1 ] || \
-   [ "$$(uci -q get ikev2-manager.server.enabled)" = 1 ]; then
+   [ "$$(uci -q get ikev2-manager.client.enabled)" = 1 ]; then
 	echo "Existing configuration detected; runtime was not started automatically."
 fi
 echo "IKEv2 Manager for OpenWrt installed."

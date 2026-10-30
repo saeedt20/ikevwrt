@@ -35,6 +35,7 @@ case "$command" in
 			ikev2-manager.globals|ikev2-manager.server|ikev2-manager.client|ikev2-manager.dns)
 				exit 0
 				;;
+			ikev2-manager.globals.schema_version) printf '%s\n' 3 ;;
 			ikev2-manager.globals.configured) printf '%s\n' 0 ;;
 			ikev2-manager.client.enabled) printf '%s\n' 1 ;;
 			ikev2-manager.client.remote_address) printf '%s\n' vpn.example.test ;;
@@ -43,9 +44,9 @@ case "$command" in
 			ikev2-manager.client.dpd) printf '%s\n' 30 ;;
 			ikev2-manager.client.mtu) printf '%s\n' 1400 ;;
 			ikev2-manager.client.reconnect_cooldown) printf '%s\n' 15 ;;
-			ikev2-manager.client.tunnel_dns_provider) printf '%s\n' google ;;
-			ikev2-manager.client.tunnel_dns_upstream) printf '%s\n' 'https://dns.google/dns-query https://dns.cloudflare.com/dns-query' ;;
-			ikev2-manager.client.tunnel_dns_bootstrap) printf '%s\n' '8.8.8.8:53 8.8.4.4:53 1.1.1.1:53 1.0.0.1:53' ;;
+			ikev2-manager.client.tunnel_dns_provider) printf '%s\n' cloudflare ;;
+			ikev2-manager.client.tunnel_dns_upstream) printf '%s\n' 'https://cloudflare-dns.com/dns-query' ;;
+			ikev2-manager.client.tunnel_dns_bootstrap) printf '%s\n' '1.1.1.1:53 1.0.0.1:53' ;;
 			ikev2-manager.client.custom_config) printf '%s\n' "$TEST_CUSTOM_MODE" ;;
 			*) exit 1 ;;
 		esac
@@ -59,7 +60,7 @@ case "$command" in
 			count="$(cat "$TEST_COMMIT_COUNT" 2>/dev/null || echo 0)"
 			count=$((count + 1))
 			printf '%s\n' "$count" >"$TEST_COMMIT_COUNT"
-			if [ "$count" -ge 2 ]; then
+			if [ "$count" -ge 1 ]; then
 				printf '%s\n' CORRUPTED >"$TEST_CONFIG_DIR/ikev2-manager"
 				exit 1
 			fi
@@ -93,9 +94,9 @@ office-user
 1400
 office-password
 15
-google
-https://dns.google/dns-query https://dns.cloudflare.com/dns-query
-8.8.8.8:53 8.8.4.4:53 1.1.1.1:53 1.0.0.1:53
+cloudflare
+https://cloudflare-dns.com/dns-query
+1.1.1.1:53 1.0.0.1:53
 EOF
 }
 
@@ -246,9 +247,9 @@ printf '%s\n' "$client_state" | grep -Fxq 'interface_present=1'
 printf '%s\n' "$client_state" | grep -Fxq 'interface_bytes_in=123456'
 printf '%s\n' "$client_state" | grep -Fxq 'interface_bytes_out=654321'
 
-grep -Fq "var trafficCard = liveCard(_('Current SA traffic'));" \
+grep -Fq "var trafficCard = liveCard(_('Current session'));" \
 	"$root/luci-ikev2-manager/client.js"
-grep -Fq "var accumulatedTrafficCard = liveCard(_('Accumulated tunnel traffic'));" \
+grep -Fq "var accumulatedTrafficCard = liveCard(_('Total tunnel traffic'));" \
 	"$root/luci-ikev2-manager/client.js"
 grep -Fq "_('Counter age: %s').format(common.formatDuration(child['install-time']))" \
 	"$root/luci-ikev2-manager/client.js"

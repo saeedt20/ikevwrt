@@ -28,3 +28,13 @@ published by Let's Encrypt:
 
 They are included as certificate data used to verify ACME downloads and are
 not authored by this project.
+
+Bundled Iranian domains (v1.13.4)
+================================
+
+The domain-only snapshot under luci-ikev2-domains/iran/ is derived from
+Chocolate4U/Iran-v2ray-rules. Its GPL-3.0 license, upstream attribution, pinned
+revision and input checksum accompany the data. The upstream Iranian-domain
+source is bootmortis/iran-hosted-domains (MIT). No GeoIP, advertising or
+security categories are bundled. See that directory's SOURCE.md and LICENSE.
+The application code remains MIT-licensed.

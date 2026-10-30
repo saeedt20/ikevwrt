@@ -128,24 +128,6 @@ if 'show' not in a:
             if fail: assert result['guards'] == initial
     print('audit: continuous fail-closed guard and netlink error propagation OK')
 
-    # Missing any mandatory inbound guard must fail a runtime check.
-    policy = function('ikev2-manager-runtime/ikev2-user-policy.sh', 'check_runtime')
-    nft = bindir / 'nft'
-    nft.write_text('''#!/bin/sh
-case "$*" in
- *"chain inet test input") [ "$BROKEN" != input ] || exit 1; echo 'type filter hook input; ip saddr @inbound_pool drop';;
- *"chain inet test forward") [ "$BROKEN" != forward ] || exit 1; echo 'type filter hook forward; jump inbound_policy';;
- *"chain inet test inbound_policy") [ "$BROKEN" != drop ] || exit 0; echo 'ip daddr @inbound_pool drop';;
- *"set inet test "*) [ "$BROKEN" != set ] || exit 1;;
- *) exit 1;;
-esac
-''')
-    nft.chmod(0o755)
-    setup = 'uci() { case "$*" in *custom_config) echo 0;; *) echo 1;; esac; }; runtime_owned() { return 0; }; table=test; nft_bin=nft\n'
-    for broken in ('none', 'input', 'forward', 'drop', 'set'):
-        run(setup + policy + 'check_runtime', dict(env, BROKEN=broken), broken == 'none')
-    print('audit: inbound input/forward/default-drop/set verification OK')
-
     # A probe success requires a query response, and both bootstrap and DoH
     # must bind to the tunnel. A server address in nslookup output is no answer.
     domain = 'ikev2-manager-runtime/ikev2-domain-router.sh'
@@ -208,26 +190,13 @@ listener_ready() {
             raise AssertionError('probe left running worker')
     print('audit: real-query contract, tunnel-bound bootstrap and worker cleanup OK')
 
-    # Security diagnostics may permit repair work without claiming that the
-    # vulnerable enabled server is healthy.
-    system = (ROOT / 'ikev2-manager-runtime/ikev2-manager-system.sh').read_text()
-    a = system.index('\tif pkg_version_at_least strongswan 6.0.7; then', system.index('doctor()'))
-    b = system.index('\tif [ "$(getv globals configured)"', a)
-    diagnostic = system[a:b]
-    for modern, enabled, repair, expected in [(0,1,0,0), (0,1,1,1), (1,1,0,1), (0,0,0,1)]:
-        setup = f'''ok=1; strongswan_version=test; IKEV2_DOCTOR_ALLOW_RUNTIME_REPAIR={repair}
-pkg_version_at_least() {{ [ {modern} = 1 ]; }}
-getv() {{ echo {enabled}; }}
-'''
-        result = run(setup + diagnostic + f'[ "$ok" = {expected} ]', env)
-        if not modern and enabled: assert 'security_ok=0' in result
     health = (ROOT / 'ikev2-manager-runtime/ikev2-health.sh').read_text()
     a = health.index('\t\t\tstate=up\n')
     b = health.index('\t\t\tprintf', a)
     for failures, routing, expected in [(0,'ok','up'), (1,'ok','degraded'), (0,'degraded','degraded')]:
         run(f'failures={failures}; routing_policy_state={routing}\n' + health[a:b] +
             f'[ "$state" = {expected} ]', env)
-    print('audit: vulnerable server and failed data probe cannot report healthy OK')
+    print('audit: failed data probe cannot report healthy OK')
 
     # Targeted proxy retirement uses source CIDRs, retains other clients, and
     # keeps the API credential out of process arguments.

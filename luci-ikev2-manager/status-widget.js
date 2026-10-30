@@ -3,7 +3,7 @@
 'use strict';
 'require baseclass';
 'require fs';
-'require ikev2-manager.shared-v21 as common';
+'require ikev2-manager.shared-v23 as common';
 
 // Shadow the global _() with the project translator for this module only;
 // see the note in shared.js about not replacing window._.
@@ -30,43 +30,6 @@ function installedChild(sa, name) {
 	}) || null;
 }
 
-function activeInboundSessions(sas) {
-	var sessions = [];
-
-	sas.forEach(function(item) {
-		var sa = item['ikev2-in'];
-		if (!sa || sa.state !== 'ESTABLISHED')
-			return;
-
-		var children = Object.values(sa['child-sas'] || {}).filter(function(child) {
-			return child.state === 'INSTALLED';
-		});
-		if (!children.length)
-			return;
-
-		var bytesIn = 0;
-		var bytesOut = 0;
-		children.forEach(function(child) {
-			bytesIn += Number(child['bytes-in'] || 0);
-			bytesOut += Number(child['bytes-out'] || 0);
-		});
-
-		sessions.push({
-			user: sa['remote-eap-id'] || sa['remote-id'] || _('Unknown'),
-			vips: sa['remote-vips'] || [],
-			established: Number(sa.established || 0),
-			// Counters are relative to the router: bytes-out are downloaded by
-			// the remote client and bytes-in are uploaded by it.
-			bytesReceived: bytesOut,
-			bytesSent: bytesIn
-		});
-	});
-
-	return sessions.sort(function(left, right) {
-		return left.user.localeCompare(right.user) ||
-			String(left.vips[0] || '').localeCompare(String(right.vips[0] || ''));
-	});
-}
 
 function traffic(direction, bytes, label) {
 	return E('span', {
@@ -74,37 +37,18 @@ function traffic(direction, bytes, label) {
 		'title': label
 	}, [
 		common.icon(direction === 'received' ? 'down' : 'up'),
-		common.formatBytes(bytes)
-	]);
-}
-
-function sessionCard(session) {
-	var address = session.vips.length ? session.vips.join(', ') : _('Address unavailable');
-
-	return E('div', { 'class': 'ikev2-widget-client' }, [
-		E('div', { 'class': 'ikev2-user-identity' }, [
-			E('span', { 'class': 'ikev2-user-avatar' }, [
-				session.user.charAt(0) || '?'
-			]),
-			E('span', { 'class': 'ikev2-widget-client-name' }, [
-				E('strong', { 'class': 'ikev2-user-name' }, [ session.user ]),
-				E('span', { 'class': 'ikev2-widget-address' }, [ address ])
-			])
-		]),
-		E('span', { 'class': 'ikev2-widget-duration' }, [
-			_('Online for %s').format(common.formatDuration(session.established))
-		]),
-		E('span', { 'class': 'ikev2-widget-traffic' }, [
-			traffic('received', session.bytesReceived, _('Received')),
-			traffic('sent', session.bytesSent, _('Sent'))
+		E('span', {}, [
+			E('span', { 'class': 'ikev2-traffic-label' }, [ direction === 'received' ? _('Downloaded') : _('Uploaded') ]),
+			E('strong', {}, [ common.formatBytes(bytes) ])
 		])
 	]);
 }
 
+
 function componentCard(label, state, detail, meta) {
 	return E('div', { 'class': 'ikev2-widget-component' }, [
-		E('div', { 'class': 'ikev2-widget-component-label' }, [ label ]),
 		E('div', { 'class': 'ikev2-widget-component-head' }, [
+			E('span', { 'class': 'ikev2-widget-component-label' }, [ label ]),
 			common.pill(state.label, state.tone)
 		]),
 		detail ? E('div', { 'class': 'ikev2-widget-component-detail' }, detail) : '',
@@ -204,23 +148,29 @@ function policyComponent(statusAvailable, status) {
 	else
 		state = { label: _('Standard mode active'), tone: 'info' };
 
-	var counts = _('%d domains').format(Number(status.pbr_domains || 0)) +
-		' · ' + _('%d service groups').format(Number(status.community_services || 0));
+	var counts = [];
+	if (Number(status.device_fullroute || 0))
+		counts.push(_('%d full-route rules').format(Number(status.device_fullroute)));
+	if (Number(status.pbr_domains || 0))
+		counts.push(_('%d domains').format(Number(status.pbr_domains)));
+	if (Number(status.community_services || 0))
+		counts.push(_('%d service groups').format(Number(status.community_services)));
 	var addressCount = Number(status.manual_addresses || 0);
 	if (addressCount)
-		counts += ' · ' + _('%d address rules').format(addressCount);
+		counts.push(_('%d address rules').format(addressCount));
 	var excludedDevices = Number(status.device_excluded || 0);
 	if (excludedDevices)
-		counts += ' · ' + _('%d excluded devices').format(excludedDevices);
+		counts.push(_('%d excluded devices').format(excludedDevices));
 	var bypasses = Number(status.device_dns_passthrough || 0) +
 		Number(status.device_dpi_passthrough || 0);
 	if (bypasses)
-		counts += ' · ' + _('%d bypass settings').format(bypasses);
+		counts.push(_('%d bypass settings').format(bypasses));
 	var excludedTraffic = Number(status.device_excluded_bytes || 0);
 
 	return {
 		issue: !pbrReady || !failClosed || (fakeIp && !reliable),
-		node: componentCard(_('Policy routing'), state, [ counts ], [
+		node: componentCard(_('Policy routing'), state,
+			[ counts.join(' · ') || _('Device and destination policies') ], [
 			E('span', {}, [
 				pbrReady ? _('PBR running') : _('PBR stopped')
 			]),
@@ -234,39 +184,6 @@ function policyComponent(statusAvailable, status) {
 	};
 }
 
-function inboundComponent(statusAvailable, status, sessionsAvailable, sessions) {
-	if (!statusAvailable) {
-		return {
-			issue: true,
-			node: componentCard(_('Inbound server'),
-				{ label: _('Unavailable'), tone: 'bad' },
-				[ _('Server state is unavailable.') ])
-		};
-	}
-	if (status.server_enabled !== '1') {
-		return {
-			issue: false,
-			node: componentCard(_('Inbound server'),
-				{ label: _('Disabled'), tone: 'neutral' },
-				[ _('Inbound server is disabled.') ])
-		};
-	}
-
-	var loaded = status.inbound_conn_loaded === '1' &&
-		status.inbound_pool_loaded === '1';
-	var issue = !loaded || !sessionsAvailable;
-	var state = issue ?
-		{ label: _('Server degraded'), tone: 'bad' } :
-		{ label: _('Server ready'), tone: 'good' };
-	var detail = sessionsAvailable ?
-		_('%d active sessions').format(sessions.length) :
-		_('Inbound session data is unavailable.');
-
-	return {
-		issue: issue,
-		node: componentCard(_('Inbound server'), state, [ detail ])
-	};
-}
 
 return baseclass.extend({
 	title: 'IKEv2 Manager',
@@ -289,10 +206,8 @@ return baseclass.extend({
 		var sasAvailable = data && !failed(data[1]);
 		var status = statusAvailable ? common.parseKeyValues(data[0].stdout) : {};
 		var sas = sasAvailable ? common.parseSwanmon(data[1]) : [];
-		var sessions = sasAvailable ? activeInboundSessions(sas) : [];
 		var outbound = outboundComponent(statusAvailable, status, sasAvailable, sas);
 		var policy = policyComponent(statusAvailable, status);
-		var inbound = inboundComponent(statusAvailable, status, sasAvailable, sessions);
 		var projectState;
 
 		if (!statusAvailable) {
@@ -307,7 +222,7 @@ return baseclass.extend({
 				tone: 'neutral'
 			};
 		}
-		else if (outbound.issue || policy.issue || inbound.issue ||
+		else if (outbound.issue || policy.issue ||
 				(status.client_enabled === '1' && status.health !== 'up')) {
 			projectState = {
 				label: _('Action required'),
@@ -321,38 +236,18 @@ return baseclass.extend({
 			};
 		}
 
-		var clients = sessions.length ? E('div', {
-			'class': 'ikev2-widget-clients'
-		}, [
-			E('div', { 'class': 'ikev2-widget-clients-head' }, [
-				E('strong', {}, [ _('Active inbound clients') ]),
-				common.pill(_('%d active sessions').format(sessions.length), 'good')
-			]),
-			E('div', { 'class': 'ikev2-widget-client-list' },
-				sessions.map(sessionCard))
-		]) : '';
 
 		return E('div', {}, [
 			common.styles(),
 			E('div', { 'class': 'ikev2-page ikev2-status-widget' }, [
 				E('div', { 'class': 'ikev2-widget-summary' }, [
-					E('span', { 'class': 'ikev2-widget-summary-label' }, [
-						_('Project status')
-					]),
-					common.pill(projectState.label, projectState.tone)
-				]),
-				E('div', { 'class': 'ikev2-widget-overview' }, [
-					outbound.node,
-					policy.node,
-					inbound.node
-				]),
-				clients,
-				E('div', { 'class': 'ikev2-widget-footer' }, [
+					common.pill(projectState.label, projectState.tone),
 					E('a', {
 						'class': 'ikev2-quick-link',
 						'href': L.url('admin', 'services', 'ikev2-manager', 'setup')
 					}, [ _('Open IKEv2 Manager') ])
-				])
+				]),
+				E('div', { 'class': 'ikev2-widget-overview' }, [ outbound.node, policy.node ])
 			])
 		]);
 	}

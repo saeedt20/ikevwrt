@@ -3,7 +3,7 @@
 'use strict';
 'require view';
 'require fs';
-'require ikev2-manager.shared-v21 as common';
+'require ikev2-manager.shared-v23 as common';
 
 // Shadow the global _() with the project translator for this module only;
 // see the note in shared.js about not replacing window._.
@@ -463,28 +463,11 @@ return view.extend({
 
 		for (var i = 0; i < selectedLines.length; i++)
 			selected[selectedLines[i]] = true;
+		// The service panel is hidden; retain its saved choices when custom rules are saved.
 		serviceSelection = Object.assign({}, selected);
 
 		var engineResult = common.inlineResult();
 		var iranResult = common.inlineResult();
-		var iranRefreshButton = E('button', {
-			'class': 'cbi-button cbi-button-action'
-		}, [ _('Update lists now') ]);
-		iranRefreshButton.addEventListener('click', function() {
-			return common.runJob({
-				button: iranRefreshButton,
-				result: iranResult,
-				busy: _('Downloading the current lists...'),
-				startPath: iranDirectHelper,
-				startArgs: [ 'refresh-async' ],
-				statusPath: iranDirectHelper,
-				statusArgs: [ 'status' ],
-				statusIdArg: false,
-				timeout: 240000,
-				failure: _('Unable to update Iranian routing'),
-				success: _('Lists updated.')
-			});
-		});
 		var iranExtraResult = common.inlineResult();
 		var iranExtraArea = E('textarea', {
 			'id': 'ikev2-iran-extra',
@@ -503,7 +486,7 @@ return view.extend({
 				return common.execChecked(iranDirectHelper, [ 'write', token ],
 					_('Unable to save the additions'));
 			}).then(function() {
-				iranExtraResult.ok(_('Saved. They apply with the next update.'));
+				iranExtraResult.ok(_('Saved. Re-enable Iranian direct routing to apply additions.'));
 			}).catch(function(error) {
 				iranExtraResult.err(common.errorMessage(error,
 					_('Unable to save the additions')));
@@ -519,7 +502,7 @@ return view.extend({
 			return common.runJob({
 				button: iranToggle,
 				result: iranResult,
-				busy: desired ? _('Downloading and applying Iranian lists...') : _('Disabling Iranian direct routing...'),
+				busy: desired ? _('Applying bundled Iranian domains...') : _('Disabling Iranian direct routing...'),
 				startPath: iranDirectHelper,
 				startArgs: [ desired ? 'enable-async' : 'disable-async' ],
 				statusPath: iranDirectHelper,
@@ -1067,22 +1050,19 @@ return view.extend({
 
 		var domainsContent = E('div', {}, [
 			common.section(_('Iranian destinations via WAN'),
-				_('When enabled, Iranian domains and public IP ranges use WAN before VPN rules. The lists include Iranian messengers. Downloads and routing changes are checked; a failed update keeps the previous rules. Shared CDN addresses and unknown destinations cannot be identified with certainty.'),
+				_('Iranian domain suffixes from the packaged Iran-v2ray-rules snapshot use WAN before VPN rules. No IP ranges are bundled. The snapshot works offline and is updated with application releases.'),
 				E('div', {}, [
 					common.toggleRow(iranToggle,
 						_('Send Iranian destinations directly'),
 						_('Applies to matching Iranian domains and IP networks; other destinations keep their existing routing.'),
 						iranResult.node),
-					E('div', { 'class': 'ikev2-actions', 'style': 'margin-top:.75rem' }, [
-						iranRefreshButton
-					]),
 					E('p', { 'class': 'ikev2-note' }, [
 						_('Current lists: %s domains, %s IP networks.').format(iranStatus.domains || '0', iranStatus.cidrs || '0')
 					]),
 					E('details', { 'class': 'ikev2-advanced', 'style': 'margin-top:1rem' }, [
 						E('summary', {}, [ _('Your own additions') ]),
 						E('p', { 'class': 'ikev2-note' }, [
-							_('One entry per line: a domain name, or an IP network in CIDR form. These are merged into the downloaded lists and are kept across upgrades. Private, reserved and documentation ranges are refused.')
+							_('One entry per line: a domain name, or an IP network in CIDR form. These are merged into the bundled domains and are kept across upgrades. Private, reserved and documentation ranges are refused.')
 						]),
 						iranExtraArea,
 						E('div', { 'class': 'ikev2-actions' }, [
@@ -1129,16 +1109,6 @@ return view.extend({
 						resolverDiagnosticResult.node
 					])
 				])),
-			common.section(_('Services'),
-				_('Prepared and user-created services stay in separate lists. Chips stage policy selection; the page Save button applies it. Service definitions are managed independently.'),
-				E('div', {}, [
-					serviceCatalog,
-					serviceEditor,
-					serviceResult.node
-				]), E('div', { 'class': 'ikev2-actions' }, [
-					manageServicesButton
-				])),
-			buildSourcesSection(data[7]),
 			E('div', { 'class': 'ikev2-destination-editors' }, [
 				common.section(_('Custom domains'),
 					_('One plain domain per line. Custom entries are never overwritten by service updates.'),
@@ -1237,39 +1207,9 @@ return view.extend({
 			var body = E('div', {});
 			var result = common.inlineResult();
 			renderSourcesBody(body, (response || {}).stdout || '');
-			refreshSourcesButton = E('button', { 'class': 'cbi-button cbi-button-action' }, [ _('Update lists now') ]);
-			refreshSourcesButton.addEventListener('click', function() {
-				if (serviceBusy)
-					return;
-				setServiceControlsBusy(true, refreshSourcesButton);
-				return common.runJob({
-					button: refreshSourcesButton,
-					result: result,
-					busy: _('Updating lists...'),
-					startPath: communityHelper,
-					startArgs: [ 'refresh-schedule', 'force' ],
-					statusPath: communityHelper,
-					statusArgs: [ 'status' ],
-					timeout: 180000,
-					failure: _('Unable to start the list update'),
-					success: _('Lists updated.'),
-					onSuccess: function() {
-						return L.resolveDefault(fs.exec(communityHelper, [ 'sources' ]), {
-							stdout: ''
-						}).then(function(fresh) {
-							renderSourcesBody(body, (fresh || {}).stdout || '');
-						});
-					}
-				}).finally(function() {
-					setServiceControlsBusy(false, refreshSourcesButton);
-				});
-			});
+
 			return common.section(_('List sources'),
-				_('Where each selected service gets its domains and networks. Lists update after every boot and then once a day; a failed download keeps the last good copy.'),
-				body, E('div', { 'class': 'ikev2-actions' }, [
-					result.node,
-					refreshSourcesButton
-				]));
+				_('Iranian domains are bundled with this application. Other selected service sources are shown below.'), body);
 		}
 
 		var saveResult = common.inlineResult();
@@ -1289,7 +1229,7 @@ return view.extend({
 			common.styles(),
 			E('div', { 'class': 'ikev2-page' }, [
 				common.header(_('Policy Routing'),
-					_('Build the IPv4 VPN policy from curated services, custom destinations and per-device modes.'),
+					_('Choose how custom destinations and devices use the VPN.'),
 					policyPill),
 				domainsContent,
 				E('div', { 'class': 'ikev2-actions end', 'style': 'margin-top:1.1rem' }, [
