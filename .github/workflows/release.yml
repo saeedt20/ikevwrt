@@ -47,11 +47,20 @@ jobs:
             sha256sum --check
           tar --use-compress-program=unzstd -xf \
             "build/${OPENWRT_APK_SDK_ARCHIVE}" -C build
-      - name: Build unsigned OpenWrt 25.12 APK
+      - name: Build signed OpenWrt 25.12 APK
+        env:
+          SIGNING_KEY_PEM: ${{ secrets.IKEVWRT_APK_SIGNING_KEY }}
         run: |
           . ./apk-feed.env
+          test -n "$SIGNING_KEY_PEM" || { echo 'Missing IKEVWRT_APK_SIGNING_KEY secret' >&2; exit 1; }
+          umask 077
+          printf '%s\n' "$SIGNING_KEY_PEM" >"$RUNNER_TEMP/ikevwrt-signing.pem"
+          unset SIGNING_KEY_PEM
+          trap 'rm -f "$RUNNER_TEMP/ikevwrt-signing.pem"' EXIT
+          OPENWRT_APK_SIGNING_KEY="$RUNNER_TEMP/ikevwrt-signing.pem" \
           OPENWRT_SDK_DIR="$PWD/build/${OPENWRT_APK_SDK_ARCHIVE%.tar.zst}" \
             ./scripts/build-apk.sh
+          cp keys/ikevwrt-release.pem dist/apk/
       - name: Publish release assets
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:

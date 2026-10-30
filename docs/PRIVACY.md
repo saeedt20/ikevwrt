@@ -1,7 +1,8 @@
 # Publication privacy review
 
 The v1.13.5 publication was checked before pushing source or publishing assets.
-The release contains only the application APK and its SHA-256 checksum.
+The release contains the signed application APK, its SHA-256 checksum and a
+public verification key.
 
 ## Checks performed
 
@@ -34,3 +35,11 @@ Review attachments before sharing. Connection profiles can contain passwords;
 backups and diagnostics can reveal endpoints, addresses, device names, MAC
 addresses and keys. Remove those details first. Automated scans reduce accidental
 exposure but cannot guarantee detection of every sensitive value.
+
+## APK signing update
+
+The dedicated private key stays in an ignored, owner-only local directory and
+an encrypted GitHub Actions secret. It is excluded from SDK source staging,
+Git, logs and release assets. Only the public verification key is distributed.
+The signed APK payload is byte-for-byte identical to the original v1.13.5
+payload and is scanned again before upload.

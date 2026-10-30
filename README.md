@@ -32,15 +32,15 @@ v1.13.5 removes the inbound server and VPN Users. Services and List sources pane
 
 **Only tested on Xiaomi Redmi Router AX6S.** The release APK uses the official **OpenWrt 25.12.6 SDK**, target `mediatek/mt7622`, architecture `aarch64_cortex-a53`. Other devices and IPK builds are unverified. This is an OpenWrt package, not an Android app or firmware image.
 
-Back up your configuration. Download the APK and `SHA256SUMS.apk` from [Releases](https://github.com/saeedt20/ikevwrt/releases/latest), copy them to `/tmp` on the router, then run:
+Back up your configuration. Complete the [one-time public-key setup](docs/OPENWRT25.md#signed-release-apks), then download the APK from [Releases](https://github.com/saeedt20/ikevwrt/releases/latest) and use **System → Software → Upload Package… → Install**.
+
+For command-line installation after key setup:
 
 ```sh
-cd /tmp
-sha256sum -c SHA256SUMS.apk
-apk add --allow-untrusted /tmp/luci-app-ikev2-manager-1.13.5.apk
+apk add /tmp/luci-app-ikev2-manager-1.13.5.apk
 ```
 
-APKs are **unsigned**: verify the checksum first. Upgrade over the existing package to preserve outbound settings. The client-only migration retains retired inbound data in a private recovery archive on the router. Open **Services → IKEv2 Manager**; see the [setup guide](docs/USAGE.md).
+Release APKs are signed with the dedicated IkevWrt key. Upgrade over the existing package to preserve outbound settings. Retired inbound data stays in a private recovery archive on the router. Open **Services → IKEv2 Manager**; see the [setup guide](docs/USAGE.md).
 
 ## Validation and privacy
 

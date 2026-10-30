@@ -1,18 +1,24 @@
-# Shared APK release key
+# APK verification keys
 
-`ikev2-manager-release.pem` is the legacy filename and
-`nikitid-openwrt-release.pem` is its generic alias. The files are
-byte-for-byte identical and contain the shared public P-256 key used for
-Nikitid OpenWrt 25.12 APK packages and `packages.adb` indexes.
+`ikevwrt-release.pem` is the dedicated public P-256 key for IkevWrt release
+APKs. Its file SHA-256 is:
 
-Public-key file SHA-256:
+```text
+67d9a98b2527c24269ed688183af18ae2fb8f560292a237822d0cd69e53d24c3
+```
+
+See [one-time router setup](../docs/OPENWRT25.md#signed-release-apks).
+The matching private key is excluded from Git and held in the repository's
+`IKEVWRT_APK_SIGNING_KEY` Actions secret. Keep an independent protected backup;
+GitHub cannot return secret values. Losing it requires key rotation on routers.
+A compromised signing key can authorize arbitrary packages on trusting routers.
+
+`ikev2-manager-release.pem` and `nikitid-openwrt-release.pem` are identical
+inherited upstream public keys. They remain for upstream compatibility and do
+not verify IkevWrt's dedicated signatures. Their file SHA-256 is:
 
 ```text
 f27474d9261f1084350cf4ba34ecdff29e533769c36483d8dd85566e30a6a703
 ```
 
-The matching private key is not stored in this repository. Release builds read
-it from the `OPENWRT_APK_SIGNING_KEY` GitHub Actions secret. Losing that key
-requires an explicit key-rotation bootstrap on every installed router; exposing
-it allows an attacker to publish trusted packages for every application in the
-shared feed.
+Every key in this directory is public. No private key belongs here.

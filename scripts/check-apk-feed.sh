@@ -12,18 +12,25 @@ fail() {
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 release_workflow="$root/.github/workflows/release.yml"
 
-# APKs are deliberate GitHub Release assets, not an external package feed.
-# The owner has chosen unsigned packages; operators install only a verified,
-# target-matched release file with apk add --allow-untrusted.
+# Release assets are signed directly; no external package feed is involved.
+. "$root/apk-feed.env"
+openssl pkey -pubin -in "$root/$OPENWRT_APK_KEY_FILE" -noout >/dev/null 2>&1 ||
+	fail 'invalid public signing key'
+actual_hash="$(sha256sum "$root/$OPENWRT_APK_KEY_FILE" | awk '{ print $1 }')"
+[ "$actual_hash" = "$OPENWRT_APK_TRUST_SHA256" ] ||
+	fail 'public signing key checksum mismatch'
 grep -Fq './scripts/build-apk.sh' "$release_workflow" ||
 	fail 'release workflow does not build the APK'
 grep -Fq 'dist/apk/*' "$release_workflow" ||
 	fail 'release workflow does not publish the APK asset'
-grep -Fq 'Build unsigned OpenWrt 25.12 APK' "$release_workflow" ||
-	fail 'release workflow must explicitly build an unsigned APK'
-if grep -Fq 'OPENWRT_APK_SIGNING_KEY' "$release_workflow"; then
-	fail 'release workflow must not require an APK signing key'
-fi
+grep -Fq 'secrets.IKEVWRT_APK_SIGNING_KEY' "$release_workflow" ||
+	fail 'release workflow must use the dedicated signing secret'
+grep -Fq 'test -n "$SIGNING_KEY_PEM"' "$release_workflow" ||
+	fail 'release workflow must reject a missing signing secret'
+grep -Fq 'OPENWRT_APK_SIGNING_KEY="$RUNNER_TEMP/ikevwrt-signing.pem"' "$release_workflow" ||
+	fail 'release workflow must pass the signing key to the builder'
+grep -Fq 'cp keys/ikevwrt-release.pem dist/apk/' "$release_workflow" ||
+	fail 'release workflow must publish the public verification key'
 if grep -Fq 'openwrt-feed' "$release_workflow"; then
 	fail 'release workflow must not publish through an external APK feed'
 fi

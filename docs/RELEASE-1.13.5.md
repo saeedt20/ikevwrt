@@ -32,7 +32,8 @@ package upgrade.
 ## Compatibility and checks
 
 Only Redmi AX6S has been tested. The APK is built with the verified official
-OpenWrt 25.12.6 SDK for `mediatek/mt7622`, `aarch64_cortex-a53`. It is unsigned.
+OpenWrt 25.12.6 SDK for `mediatek/mt7622`, `aarch64_cortex-a53`. The release APK is signed with the dedicated IkevWrt
+key.
 Other targets, firmware builds and IPK installations are unverified.
 
 Local CI covers migration failure/retry, credential preservation, rollback,
@@ -41,9 +42,21 @@ DNS configuration was checked with the official sing-box validator.
 
 The same runtime/UI passed live AX6S/OpenWrt 25.12.6 checks in development
 builds: VPN HTTPS, tunnel DoH, Iran/WAN routing, firewall validation, fail-closed
-routes and service health. The new version/SDK packaging has not been installed
-on hardware. Full reboot recovery and sustained load remain untested.
+routes and service health. The signed v1.13.5 package was installed through
+LuCI Upload Package on AX6S without bypassing signature verification.
+Configuration and private application-state hashes were preserved, and doctor,
+PBR and health checks passed. Full reboot recovery and sustained load remain
+untested.
 
 The proposed source, APK payload/metadata and screenshots are checked for
 secrets and private session identifiers before publication. See
 [privacy checks](PRIVACY.md) and the [UI previews](UI-REDESIGN.md).
+
+## Signed APK update
+
+The original unsigned asset was replaced by a signed equivalent with identical
+package files and scripts. Download the APK and checksum again if you kept the
+earlier copy. The public key is included as `ikevwrt-release.pem`; follow the
+[one-time trust setup](OPENWRT25.md#signed-release-apks), then use
+**System → Software → Upload Package… → Install** for future signed updates.
+Only the public key is distributed.

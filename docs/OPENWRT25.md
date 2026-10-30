@@ -59,20 +59,52 @@ Use `ubus call system board` and `/etc/openwrt_release` on the target router;
 do not choose an SDK solely by CPU family. A successful build is only the first
 step: complete the release-validation checklist below before publishing it.
 
-## Unsigned Release APKs
+## Signed Release APKs
 
-Release APKs are intentionally unsigned. Download the exact target-matched
-APK and its SHA-256 checksum from the GitHub Release, copy it to the router,
-and install it explicitly:
+Release APKs use the dedicated IkevWrt P-256 signing key. Add its public key
+once on each router before installing through LuCI. The private signing key
+never belongs on the router or in a release asset.
+
+Download `ikevwrt-release.pem` from the release and copy it to `/tmp` on the
+router. Compare its fingerprint with this record before trusting it:
 
 ```sh
-apk add --allow-untrusted /tmp/luci-app-ikev2-manager-1.13.5.apk
+echo '67d9a98b2527c24269ed688183af18ae2fb8f560292a237822d0cd69e53d24c3  /tmp/ikevwrt-release.pem' | sha256sum -c -
 ```
 
-No signing key, package feed or system-wide `apk upgrade` is required. To
-update, verify the next release checksum and repeat the same command with its
-APK. `--allow-untrusted` means the checksum verification is the operator's
-responsibility.
+Only if that reports `OK`, install the public key:
+
+```sh
+mkdir -p /etc/apk/keys
+cp /tmp/ikevwrt-release.pem /etc/apk/keys/ikevwrt-release.pem
+chmod 644 /etc/apk/keys/ikevwrt-release.pem
+grep -qxF /etc/apk/keys/ikevwrt-release.pem /etc/sysupgrade.conf ||
+  printf '\n/etc/apk/keys/ikevwrt-release.pem\n' >> /etc/sysupgrade.conf
+```
+
+For each update, download the target-matched APK and use **System → Software →
+Upload Package… → Install**. LuCI still asks for confirmation for an uploaded
+file; APK then verifies the trusted signature. Alternatively:
+
+```sh
+apk add /tmp/luci-app-ikev2-manager-1.13.5.apk
+```
+
+No package feed or system-wide `apk upgrade` is needed. Factory resets and
+firmware installations without preserved settings require key setup again.
+Trusting this key authorizes packages signed by its holder; APK does not scope
+a trusted key to one package name. Keep the signing secret protected.
+
+The v1.13.5 release asset was replaced with its signed equivalent. Package
+files and scripts are unchanged; the APK checksum changed. Download it again
+if you kept the earlier unsigned file. Older unsigned releases still require
+`--allow-untrusted`. Manual target-build artifacts remain unsigned unless the
+maintainer supplies `OPENWRT_APK_SIGNING_KEY`.
+
+Maintainer release builds read the encrypted `IKEVWRT_APK_SIGNING_KEY` GitHub
+Actions secret, write a temporary owner-only key file, and remove it afterward.
+A missing secret or mismatched public key stops the release build. Local builds
+can pass the private-key path as `OPENWRT_APK_SIGNING_KEY`; never commit it.
 
 ## Release validation
 

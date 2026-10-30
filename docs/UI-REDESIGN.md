@@ -35,8 +35,8 @@ Installed assets and menu paths were verified. Live health, PBR, fail-closed
 and domain-routing checks passed. APK secret scans found no leaks. These
 screenshots use synthetic data, contain no live router values and have no EXIF.
 
-No reboot or sustained-load test was performed. The v1.13.5 version/SDK
-packaging has not been installed on hardware.
+No reboot or sustained-load test was performed. The signed v1.13.5 package was subsequently installed using LuCI Upload
+Package on AX6S without a signature bypass; configuration hashes were preserved.
 
 ## Previews
 
